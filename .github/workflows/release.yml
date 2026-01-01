@@ -33,14 +33,16 @@ jobs:
     - name: Create native Linux app with jpackage
       run: |
         mkdir -p build/jpackage-input
-        cp build/libs/DecocraftJsonGenerator-clean-${{ steps.get_version.outputs.VERSION }}.jar build/jpackage-input/
+        JAR_FILE=$(ls build/libs/DecocraftJsonGenerator-clean-*.jar | head -1)
+        JAR_NAME=$(basename "$JAR_FILE")
+        cp "$JAR_FILE" build/jpackage-input/
         jpackage \
           --type app-image \
           --name DecocraftJsonGenerator \
           --app-version ${{ steps.get_version.outputs.VERSION }} \
           --vendor "Momo" \
           --input build/jpackage-input \
-          --main-jar DecocraftJsonGenerator-clean-${{ steps.get_version.outputs.VERSION }}.jar \
+          --main-jar "$JAR_NAME" \
           --main-class com.momo.decogen.Launcher \
           --dest build/package \
           --add-modules javafx.controls,javafx.fxml \
@@ -80,11 +82,12 @@ jobs:
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
     - name: Create native Windows app with jpackage
-      shell: cmd
+      shell: powershell
       run: |
-        mkdir build\jpackage-input
-        copy build\libs\DecocraftJsonGenerator-clean-${{ steps.get_version.outputs.VERSION }}.jar build\jpackage-input\
-        jpackage --type app-image --name DecocraftJsonGenerator --app-version ${{ steps.get_version.outputs.VERSION }} --vendor "Momo" --input build\jpackage-input --main-jar DecocraftJsonGenerator-clean-${{ steps.get_version.outputs.VERSION }}.jar --main-class com.momo.decogen.Launcher --dest build\package --add-modules javafx.controls,javafx.fxml --java-options "-Xmx512m"
+        mkdir build\jpackage-input -Force
+        $jarFile = Get-ChildItem build\libs\DecocraftJsonGenerator-clean-*.jar | Select-Object -First 1
+        Copy-Item $jarFile.FullName build\jpackage-input\
+        jpackage --type app-image --name DecocraftJsonGenerator --app-version ${{ steps.get_version.outputs.VERSION }} --vendor "Momo" --input build\jpackage-input --main-jar $jarFile.Name --main-class com.momo.decogen.Launcher --dest build\package --add-modules javafx.controls,javafx.fxml --java-options "-Xmx512m"
 
     - name: Create zip archive
       shell: powershell
