@@ -23,8 +23,8 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build JAR
-      run: ./gradlew jar
+    - name: Build clean JAR for jpackage
+      run: ./gradlew cleanJar
 
     - name: Get version from tag
       id: get_version
@@ -33,16 +33,17 @@ jobs:
     - name: Create native Linux app with jpackage
       run: |
         mkdir -p build/jpackage-input
-        cp build/libs/DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar build/jpackage-input/
+        cp build/libs/DecocraftJsonGenerator-clean-${{ steps.get_version.outputs.VERSION }}.jar build/jpackage-input/
         jpackage \
           --type app-image \
           --name DecocraftJsonGenerator \
           --app-version ${{ steps.get_version.outputs.VERSION }} \
           --vendor "Momo" \
           --input build/jpackage-input \
-          --main-jar DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar \
+          --main-jar DecocraftJsonGenerator-clean-${{ steps.get_version.outputs.VERSION }}.jar \
           --main-class com.momo.decogen.Launcher \
           --dest build/package \
+          --add-modules javafx.controls,javafx.fxml \
           --java-options '-Xmx512m'
 
     - name: Create tar.gz archive
@@ -70,8 +71,8 @@ jobs:
         distribution: 'liberica'
         java-package: 'jdk+fx'
 
-    - name: Build JAR
-      run: ./gradlew.bat jar
+    - name: Build clean JAR for jpackage
+      run: ./gradlew.bat cleanJar
 
     - name: Get version from tag
       id: get_version
@@ -82,8 +83,8 @@ jobs:
       shell: cmd
       run: |
         mkdir build\jpackage-input
-        copy build\libs\DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar build\jpackage-input\
-        jpackage --type app-image --name DecocraftJsonGenerator --app-version ${{ steps.get_version.outputs.VERSION }} --vendor "Momo" --input build\jpackage-input --main-jar DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar --main-class com.momo.decogen.Launcher --dest build\package --java-options "-Xmx512m"
+        copy build\libs\DecocraftJsonGenerator-clean-${{ steps.get_version.outputs.VERSION }}.jar build\jpackage-input\
+        jpackage --type app-image --name DecocraftJsonGenerator --app-version ${{ steps.get_version.outputs.VERSION }} --vendor "Momo" --input build\jpackage-input --main-jar DecocraftJsonGenerator-clean-${{ steps.get_version.outputs.VERSION }}.jar --main-class com.momo.decogen.Launcher --dest build\package --add-modules javafx.controls,javafx.fxml --java-options "-Xmx512m"
 
     - name: Create zip archive
       shell: powershell
