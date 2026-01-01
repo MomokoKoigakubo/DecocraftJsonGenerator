@@ -18,18 +18,25 @@ A JavaFX application for generating JSON configuration files for the Decocraft M
 
 ## Installation
 
-### Requirements
-- Java 21+ with JavaFX
-- Recommended: [Liberica Full JDK](https://bell-sw.com/pages/downloads/#jdk-21-lts) (includes JavaFX)
-
 ### Download
 1. Go to [Releases](https://github.com/MomokoKoigakubo/DecocraftJsonGenerator/releases/latest)
-2. Download the latest `.jar` file
+2. Download the file for your platform:
+   - **Linux:** `DecocraftJsonGenerator-X.X.X-linux.tar.gz`
+   - **Windows:** `DecocraftJsonGenerator-X.X.X-windows.zip`
 
 ### Run
+
+**Linux:**
 ```bash
-java -jar DecocraftJsonGenerator-1.0.0.jar
+tar -xzvf DecocraftJsonGenerator-*-linux.tar.gz
+./DecocraftJsonGenerator/bin/DecocraftJsonGenerator
 ```
+Or just extract and double-click `DecocraftJsonGenerator/bin/DecocraftJsonGenerator`
+
+**Windows:**
+Extract the zip and double-click `DecocraftJsonGenerator/DecocraftJsonGenerator.exe`
+
+**No Java installation required** - the app bundles its own runtime.
 
 ## Usage
 

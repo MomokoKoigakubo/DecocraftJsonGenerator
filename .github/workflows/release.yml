@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -30,6 +30,93 @@ jobs:
       id: get_version
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+    - name: Create native Linux app with jpackage
+      run: |
+        mkdir -p build/jpackage-input
+        cp build/libs/DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar build/jpackage-input/
+        jpackage \
+          --type app-image \
+          --name DecocraftJsonGenerator \
+          --app-version ${{ steps.get_version.outputs.VERSION }} \
+          --vendor "Momo" \
+          --input build/jpackage-input \
+          --main-jar DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar \
+          --main-class com.momo.decogen.Launcher \
+          --dest build/package \
+          --java-options '-Xmx512m'
+
+    - name: Create tar.gz archive
+      run: |
+        cd build/package
+        tar -czvf ../DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}-linux.tar.gz DecocraftJsonGenerator
+
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-app
+        path: build/DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}-linux.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'liberica'
+        java-package: 'jdk+fx'
+
+    - name: Build JAR
+      run: ./gradlew.bat jar
+
+    - name: Get version from tag
+      id: get_version
+      shell: bash
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Create native Windows app with jpackage
+      shell: cmd
+      run: |
+        mkdir build\jpackage-input
+        copy build\libs\DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar build\jpackage-input\
+        jpackage --type app-image --name DecocraftJsonGenerator --app-version ${{ steps.get_version.outputs.VERSION }} --vendor "Momo" --input build\jpackage-input --main-jar DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar --main-class com.momo.decogen.Launcher --dest build\package --java-options "-Xmx512m"
+
+    - name: Create zip archive
+      shell: powershell
+      run: |
+        Compress-Archive -Path build\package\DecocraftJsonGenerator -DestinationPath build\DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}-windows.zip
+
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-app
+        path: build/DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}-windows.zip
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Download Linux artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: linux-app
+        path: ./artifacts
+
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: windows-app
+        path: ./artifacts
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -37,13 +124,20 @@ jobs:
         body: |
           ## Decocraft JSON Generator ${{ github.ref_name }}
 
-          ### Installation
-          1. Download `DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar`
-          2. Run with: `java -jar DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar`
+          ### Download
 
-          **Requires:** Java 21+ with JavaFX (recommended: [Liberica Full JDK](https://bell-sw.com/pages/downloads/#jdk-21-lts))
+          **Linux:** Download `DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}-linux.tar.gz`
+          - Extract: `tar -xzvf DecocraftJsonGenerator-*-linux.tar.gz`
+          - Double-click `DecocraftJsonGenerator/bin/DecocraftJsonGenerator` to run
+
+          **Windows:** Download `DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}-windows.zip`
+          - Extract the zip
+          - Double-click `DecocraftJsonGenerator/DecocraftJsonGenerator.exe` to run
+
+          **No Java installation required** - the app bundles its own runtime.
         files: |
-          build/libs/DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}.jar
+          artifacts/DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}-linux.tar.gz
+          artifacts/DecocraftJsonGenerator-${{ steps.get_version.outputs.VERSION }}-windows.zip
         draft: false
         prerelease: false
       env:
