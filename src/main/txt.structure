@@ -1,0 +1,39 @@
+DecoEntry.java          (main class)
+├── String name
+├── String decoref      (optional)
+├── String model
+├── String material
+├── double scale
+├── String tabs
+├── int[] craftingColor
+├── String type         (optional - "seat", "animated")
+├── Boolean transparency (optional)
+├── Boolean hidden      (optional)
+├── String defaultAnimation (optional)
+├── String shape        (optional)
+├── String loot         (optional)
+├── Integer lightLevel  (optional - legacy)
+├── Flipbook flipbook   (optional)
+└── Script script       (optional)
+
+Flipbook.java
+├── int images          (frame count)
+└── int frametime       (ticks per frame)
+
+Script.java
+├── Integer light       (static light 0-15)
+├── AnimationTrigger onUse
+├── AnimationTrigger animationEnd
+├── ModelSwitch toolModelswitch
+└── (particles - save for later, it's "advanced")
+
+AnimationTrigger.java
+├── String link                     (for model switching)
+└── List<AnimationTransition> animations
+
+AnimationTransition.java
+├── String from
+└── String to
+
+ModelSwitch.java        (used in your Python for color cycling)
+└── String link

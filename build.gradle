@@ -1,0 +1,104 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+group = 'com.momo'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.google.code.gson:gson:2.11.0'
+}
+
+javafx {
+    version = '21'
+    modules = ['javafx.controls', 'javafx.fxml']
+}
+
+application {
+    mainClass = 'com.momo.decogen.Main'
+}
+
+run {
+    jvmArgs = ['--module-path', classpath.asPath,
+               '--add-modules', 'javafx.controls,javafx.fxml']
+}
+
+// Create a fat JAR with all dependencies
+jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    archiveBaseName = 'DecocraftJsonGenerator'
+
+    manifest {
+        attributes(
+            'Main-Class': 'com.momo.decogen.Launcher',
+            'Implementation-Version': version
+        )
+    }
+
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+// Linux: Create app-image (portable folder)
+tasks.register('packageLinux', Exec) {
+    dependsOn 'jar'
+
+    def jarFile = jar.archiveFile.get().asFile
+    def jpackageExe = System.getenv('JAVA_HOME') ? "${System.getenv('JAVA_HOME')}/bin/jpackage" : 'jpackage'
+
+    doFirst {
+        def inputDir = file("${buildDir}/jpackage-input")
+        inputDir.mkdirs()
+        copy {
+            from jarFile
+            into inputDir
+        }
+    }
+
+    commandLine jpackageExe,
+        '--type', 'app-image',
+        '--name', 'DecocraftJsonGenerator',
+        '--app-version', version,
+        '--vendor', 'Momo',
+        '--input', "${buildDir}/jpackage-input",
+        '--main-jar', jar.archiveFileName.get(),
+        '--main-class', 'com.momo.decogen.Launcher',
+        '--dest', "${buildDir}/package"
+}
+
+// Windows: Create exe installer
+tasks.register('packageWindows', Exec) {
+    dependsOn 'jar'
+
+    def jarFile = jar.archiveFile.get().asFile
+    def jpackageExe = System.getenv('JAVA_HOME') ? "${System.getenv('JAVA_HOME')}/bin/jpackage" : 'jpackage'
+
+    doFirst {
+        def inputDir = file("${buildDir}/jpackage-input")
+        inputDir.mkdirs()
+        copy {
+            from jarFile
+            into inputDir
+        }
+    }
+
+    commandLine jpackageExe,
+        '--type', 'exe',
+        '--name', 'DecocraftJsonGenerator',
+        '--app-version', version,
+        '--vendor', 'Momo',
+        '--input', "${buildDir}/jpackage-input",
+        '--main-jar', jar.archiveFileName.get(),
+        '--main-class', 'com.momo.decogen.Launcher',
+        '--dest', "${buildDir}/installer",
+        '--win-dir-chooser',
+        '--win-menu',
+        '--win-shortcut'
+}
