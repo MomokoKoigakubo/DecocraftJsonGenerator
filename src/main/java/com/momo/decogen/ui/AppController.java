@@ -337,43 +337,61 @@ public class AppController {
             return;
         }
 
-        DecoEntry templateEntry = entryListView.getSelectionModel().getSelectedItem();
-        if (templateEntry == null || templateEntry.getModel() == null) {
-            showAlert("No Model Selected", "Select a model entry from the Entries list first.");
+        // Multi-select: one template entry per model. Selecting two closet_7
+        // and one closet_7_open produces two buckets (closet_7, closet_7_open)
+        // and each texture spawns an entry in every bucket.
+        List<DecoEntry> selectedEntries = new ArrayList<>(entryListView.getSelectionModel().getSelectedItems());
+        java.util.LinkedHashMap<String, DecoEntry> templatesByModel = new java.util.LinkedHashMap<>();
+        for (DecoEntry e : selectedEntries) {
+            if (e == null || e.getModel() == null) continue;
+            templatesByModel.putIfAbsent(e.getModel(), e);
+        }
+        if (templatesByModel.isEmpty()) {
+            showAlert("No Model Selected", "Select one or more model entries from the Entries list first.");
             return;
         }
 
         snapshot();
-        String modelName = templateEntry.getModel();
         List<DecoEntry> newEntries = new ArrayList<>();
 
         for (String textureName : selectedTextures) {
             String suffix = TextureMatcher.extractColorSuffix(textureName);
-            String iconName = TextureMatcher.findMatchingIcon(modelName, suffix, textureFiles.keySet());
 
-            DecoEntry entry = new DecoEntry();
-            String displayName = EntryBuilder.toDisplayName(modelName + "_" + suffix);
-            String decoref = (iconName != null) ? iconName : (modelName + "_" + suffix);
-            entry.setDecoref(decoref);
-            entry.setName(displayName);
-            entry.setModel(modelName);
-            entry.setMaterial(textureName);
-            entry.setTabs(templateEntry.getTabs());
-            entry.setType(templateEntry.getType());
-            entry.setScale(templateEntry.getScale());
-            entry.setTransparency(templateEntry.getTransparency());
-            entry.setHidden(templateEntry.getHidden());
-            entry.setCraftingColor(templateEntry.getCraftingColor().clone());
+            for (Map.Entry<String, DecoEntry> tpl : templatesByModel.entrySet()) {
+                String modelName = tpl.getKey();
+                DecoEntry templateEntry = tpl.getValue();
 
-            newEntries.add(entry);
+                String iconName = TextureMatcher.findMatchingIcon(modelName, suffix, textureFiles.keySet());
+
+                DecoEntry entry = new DecoEntry();
+                String displayName = EntryBuilder.toDisplayName(modelName + "_" + suffix);
+                String decoref = (iconName != null) ? iconName : (modelName + "_" + suffix);
+                entry.setDecoref(decoref);
+                entry.setName(displayName);
+                entry.setModel(modelName);
+                entry.setMaterial(textureName);
+                entry.setTabs(templateEntry.getTabs());
+                entry.setType(templateEntry.getType());
+                entry.setScale(templateEntry.getScale());
+                entry.setTransparency(templateEntry.getTransparency());
+                entry.setHidden(templateEntry.getHidden());
+                entry.setCraftingColor(templateEntry.getCraftingColor().clone());
+
+                newEntries.add(entry);
+
+                System.out.println("Paired: " + textureName + " -> " + modelName +
+                        (iconName != null ? " (icon: " + iconName + ")" : ""));
+            }
+
             unmatchedTextures.remove(textureName);
-
-            System.out.println("Paired: " + textureName + " -> " + modelName +
-                    (iconName != null ? " (icon: " + iconName + ")" : ""));
         }
 
-        if (templateEntry.getMaterial() == null) {
-            entries.remove(templateEntry);
+        // Remove any placeholder templates (material == null) whose model
+        // we just populated.
+        for (DecoEntry templateEntry : templatesByModel.values()) {
+            if (templateEntry.getMaterial() == null) {
+                entries.remove(templateEntry);
+            }
         }
 
         entries.addAll(newEntries);
@@ -387,9 +405,13 @@ public class AppController {
         }
 
         long matchedIcons = newEntries.stream().filter(e -> iconFiles.containsKey(e.getDecoref())).count();
+        String modelsLabel = String.join(", ", templatesByModel.keySet());
         showAlert("Pairing Complete",
-                String.format("Created %d entries for model '%s'\n(%d with matched icons, %d with generated decorefs)",
-                        newEntries.size(), modelName, matchedIcons, newEntries.size() - matchedIcons));
+                String.format("Created %d entries across %d model%s (%s)\n(%d with matched icons, %d with generated decorefs)",
+                        newEntries.size(),
+                        templatesByModel.size(), templatesByModel.size() == 1 ? "" : "s",
+                        modelsLabel,
+                        matchedIcons, newEntries.size() - matchedIcons));
     }
 
     /**
@@ -473,6 +495,59 @@ public class AppController {
         showAlert("Wood Chain Built",
                 "Entries have been sorted and linked in wood type order.\n" +
                         "Check the JSON for 'tool_modelswitch' links.");
+    }
+
+    /**
+     * Find each pair of entries that share a base decoref and a suffix variant
+     * (e.g., closet_7_birch + closet_7_birch_open) and write bidirectional
+     * on_use.link between them. Does not touch tool_modelswitch.
+     */
+    public void linkStatePairs() {
+        if (entries.isEmpty()) {
+            showAlert("Link Pairs", "No entries to link.");
+            return;
+        }
+
+        ComboBox<String> suffixCombo = new ComboBox<>();
+        suffixCombo.getItems().addAll(ChainBuilder.KNOWN_STATE_SUFFIXES);
+        suffixCombo.setValue("open");
+        suffixCombo.setEditable(true);
+        suffixCombo.setMaxWidth(Double.MAX_VALUE);
+        suffixCombo.setPromptText("e.g., open");
+
+        VBox content = new VBox(8,
+                new Label("State suffix:"), suffixCombo,
+                new Label("Pairs like 'closet_7_birch' \u2194 'closet_7_birch_open' get\nbidirectional on_use.link. Run Rainbow/Wood Chain\nafter this to cycle colors within each state."));
+        content.setPadding(new Insets(10));
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Link Pairs");
+        dialog.setHeaderText("Link base \u2194 variant entries via on_use.");
+        dialog.getDialogPane().setContent(content);
+
+        ButtonType applyBtn = new ButtonType("Apply", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(applyBtn, ButtonType.CANCEL);
+
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != applyBtn) return;
+
+        String suffix = suffixCombo.getValue();
+        if (suffix == null) suffix = suffixCombo.getEditor().getText();
+        if (suffix == null || suffix.trim().isEmpty()) return;
+
+        snapshot();
+        int pairs = ChainBuilder.linkStatePairs(new ArrayList<>(entries), suffix.trim());
+        refreshEntryList();
+
+        if (pairs == 0) {
+            showAlert("Link Pairs",
+                    "No pairs found for suffix '_" + suffix.trim() + "'.\n" +
+                            "Make sure both a base entry and a 'base_" + suffix.trim() + "' entry exist.");
+        } else {
+            showAlert("Link Pairs",
+                    "Linked " + pairs + " pair" + (pairs == 1 ? "" : "s") +
+                            " via on_use (suffix '_" + suffix.trim() + "').");
+        }
     }
 
     // --- Normalize ---

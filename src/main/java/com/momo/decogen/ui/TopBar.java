@@ -140,6 +140,12 @@ public class TopBar {
         orderLinkBtn.setOnAction(e -> controller.linkEntriesByOrder());
         orderLinkBtn.setTooltip(tooltip("Link each entry to the next in the current list order (tool_modelswitch). Drag entries to reorder first."));
 
+        Button linkPairsBtn = new Button("Link Pairs\u2026");
+        linkPairsBtn.setPrefHeight(35);
+        linkPairsBtn.setStyle("-fx-background-color: #f4a13c; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
+        linkPairsBtn.setOnAction(e -> controller.linkStatePairs());
+        linkPairsBtn.setTooltip(tooltip("Pair base \u2194 variant entries (e.g., closet \u2194 closet_open) via on_use.link. Run Rainbow/Wood Chain afterward to cycle colors within each state."));
+
         Label statsLabel = new Label();
         statsLabel.setStyle("-fx-text-fill: #72767d; -fx-font-size: 12px;");
         controller.getEntries().addListener((ListChangeListener<DecoEntry>) c -> {
@@ -151,7 +157,7 @@ public class TopBar {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        root.getChildren().addAll(exportBtn, autoMatchBtn, normalizeBtn, addWordBtn, rainbowChainBtn, woodChainBtn, orderLinkBtn, resetBtn, spacer, statsLabel);
+        root.getChildren().addAll(exportBtn, autoMatchBtn, normalizeBtn, addWordBtn, rainbowChainBtn, woodChainBtn, orderLinkBtn, linkPairsBtn, resetBtn, spacer, statsLabel);
     }
 
     public HBox getRoot() {

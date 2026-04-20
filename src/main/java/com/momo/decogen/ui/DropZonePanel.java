@@ -108,11 +108,11 @@ public class DropZonePanel {
             controller.updateIconListView();
         });
 
-        Button pairBtn = new Button("Pair Selected with Entry");
+        Button pairBtn = new Button("Pair Selected with Entries");
         pairBtn.setMaxWidth(Double.MAX_VALUE);
         pairBtn.setStyle("-fx-background-color: #5865F2; -fx-text-fill: white; -fx-font-size: 11px; -fx-cursor: hand;");
         pairBtn.setOnAction(e -> controller.pairSelectedTexturesWithModel());
-        pairBtn.setTooltip(TopBar.tooltip("Create entries from selected unmatched textures using the selected entry as template"));
+        pairBtn.setTooltip(TopBar.tooltip("Create entries from selected unmatched textures using the selected entries as templates. Select multiple template entries (Ctrl-click) to fan out each texture across every selected model."));
 
         Label pairHint = new Label("Drops auto match icons and textures. Use Pair Selected for manual overrides.");
         pairHint.setStyle("-fx-text-fill: #72767d; -fx-font-size: 9px;");
