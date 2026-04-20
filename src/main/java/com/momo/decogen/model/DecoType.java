@@ -1,4 +1,4 @@
-package com.momo.decogen;
+package com.momo.decogen.model;
 
 public enum DecoType {
     SEAT("seat"),

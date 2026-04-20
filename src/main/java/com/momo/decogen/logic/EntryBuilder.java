@@ -1,4 +1,9 @@
-package com.momo.decogen;
+package com.momo.decogen.logic;
+
+import com.momo.decogen.bbmodel.BBModel;
+import com.momo.decogen.bbmodel.BBModelParser;
+import com.momo.decogen.io.DirectoryScanner;
+import com.momo.decogen.model.DecoEntry;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -22,24 +27,21 @@ public class EntryBuilder {
             String modelName = DirectoryScanner.getStem(modelFile);
             String tab = DirectoryScanner.getTabFromPath(modelFile, modelsRoot);
 
-            Model model = ModelParser.parse(modelFile);
+            BBModel model = BBModelParser.parse(modelFile);
 
-            // Find textures that start with model name
             List<String> matches = textureStems.stream()
                     .filter(t -> t.toLowerCase().startsWith(modelName.toLowerCase()))
                     .toList();
 
             if (matches.isEmpty()) {
-                // No match - create entry with null material (user assigns later)
                 DecoEntry entry = new DecoEntry();
                 entry.setName(toDisplayName(modelName));
                 entry.setModel(modelName);
-                entry.setMaterial(null);  // User must assign
+                entry.setMaterial(null);
                 entry.setTabs(tab);
                 entry.autoDetectType(model);
                 entries.add(entry);
             } else {
-                // Create entry for each matching texture
                 for (String texture : matches) {
                     DecoEntry entry = new DecoEntry();
                     entry.setName(toDisplayName(texture));
@@ -55,16 +57,10 @@ public class EntryBuilder {
         return entries;
     }
 
-    /**
-     * Check if entry needs user attention (missing material)
-     */
     public static boolean needsAttention(DecoEntry entry) {
         return entry.getMaterial() == null;
     }
 
-    /**
-     * Get all entries that need material assigned
-     */
     public static List<DecoEntry> getUnmatched(List<DecoEntry> entries) {
         return entries.stream()
                 .filter(EntryBuilder::needsAttention)

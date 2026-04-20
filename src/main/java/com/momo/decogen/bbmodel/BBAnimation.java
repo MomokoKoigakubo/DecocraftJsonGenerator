@@ -1,4 +1,4 @@
-package com.momo.decogen;
+package com.momo.decogen.bbmodel;
 
 /**
  * Represents an animation from a Blockbench model file.

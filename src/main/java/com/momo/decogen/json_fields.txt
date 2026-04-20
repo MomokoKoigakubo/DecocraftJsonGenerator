@@ -1,0 +1,114 @@
+should be able to Decocraft JSON Entry Fields - Reorder / Refactor List
+=======================================================
+
+Each field is numbered. Reorder them as you like.
+Sections show each field, order them in a final list as numbered, fields that can't exist at the same time but share similar functionality can be numbered the same since it's split logic/can't exist at the same time
+
+
+Entry - identity
+  1. name              - display name shown in tooltip and creative tab
+  2. decoref           - unique block id used for registration
+  3. material          - texture/material id  //identity/id if we didn't include decoref
+
+
+
+Entry - model & rendering
+  4. model             - bbmodel file name (no extension)
+  5. scale             - model size multiplier
+  6. shape             - custom hitbox name (references a bounding box bbmodel)
+  7. transparency      - true if the model has see-through textures (glass, etc)
+  8. culling           - whether to cull hidden faces  //currently we don't use this I believe / default true
+
+
+Entry - tab & display
+  9. tabs              - which creative tab to show up in
+ 10. default_animation - which animation plays by default (animated blocks only)
+
+
+Entry - block type & behavior
+ 11. type              - what kind of block (see type list below)
+ 12. passable          - players can walk through it
+ 13. above_water       - sits on top of water
+ 14. rotatable         - placement snaps to 45 degrees based on player facing
+ 15. displayable       - this item can be placed into display slots on other blocks
+ 16. hidden            - not shown in creative tab (state variants like "lamp on")
+ 17. loot              - decoref of a different block to drop when broken
+
+  type values:
+    underlayer    - basic decoration (default)
+    animated      - has bbmodel animations
+    bed           - sleepable
+    seat          - sittable
+    jukebox       - record player
+    decobench     - crafting bench
+    decomposer    - decomposer/composter
+    fake_block    - invisible collision
+    chain         - chain/vine connector (uses chain_models, no model field)
+
+
+Entry - crafting color (last flat field before nested/array/script groups)
+ 18. crafting_color    - RGB color for crafting bench preview (auto generated)
+
+
+Entry - composite / flipbook
+ 19. composite         - second model attached as a child (e.g. record on a jukebox)
+ 20. flipbook          - animated texture, flip between frames
+
+
+Entry - chain
+ 21. chain_models      - bbmodels used for chain segments
+ 22. chain_materials   - per-segment texture overrides
+ 23. chain_pattern     - "mirror" reflects back and forth, "repeat" cycles
+ 24. lighting          - light level emitted along the chain (0-15)
+
+
+Entry - growable
+ 25. structures        - structure files the sapling can grow into (random pick)
+ 26. instant           - grow immediately instead of over time
+
+
+Entry - scripting
+ 27. script            - container for all interactive behavior (see script section)
+
+
+composite (nested inside Entry.composite)
+ 28. model             - bbmodel name for the child
+ 29. texture           - optional texture override
+ 30. transparency      - true if the child uses transparent textures
+
+
+flipbook (nested inside Entry.flipbook)
+ 31. frametime         - ticks between frames
+ 32. images            - number of frames in the texture strip
+
+
+script (nested inside Entry.script)
+ 33. on_use            - runs on right click
+ 34. shift_on_use      - runs on shift+right click  //implemented not used
+ 35. added             - runs when the block is placed  //wired, used by 1 entry (doorbell pressed)
+ 36. trigger           - runs periodically while placed  //wired with counter, used by doorbell auto-revert
+ 37. animation_start   - runs when an animation begins (animated blocks)
+ 38. animation_end     - runs when an animation finishes (animated blocks)
+ 39. tool_modelswitch  - runs when cycled with the decobrush tool
+ 40. counter           - tick interval for the trigger action (default disabled)
+ 41. light             - light level emitted by the block (0-15)
+
+
+Action (value of on_use, shift_on_use, added, trigger, animation_start, animation_end, tool_modelswitch)
+ 42. link              - decoref of another block to switch to
+ 43. sound             - sound id from sounds.json (one-shot)
+ 44. animations        - list of animation transitions to perform
+ 45. sounds            - list of animation-synced sounds (from/to/loop)
+ 46. storage           - inventory size [columns, rows], turns the block into a container
+
+
+animations[] entry  (inside Action.animations) //these go together so while seperated they are together
+ 47. from              - state to transition from ("any" matches anything)
+ 48. to                - state to transition to ("any_other" picks a random different one)
+
+
+sounds[] entry  (inside Action.sounds) //these go together so while seperated they are together
+ 49. from              - animation state to play this sound on
+ 50. to                - state being transitioned to (omit to play during a looping state)
+ 51. sound             - sound id from sounds.json
+ 52. loop              - true = play while staying in "from", false = one-shot on transition

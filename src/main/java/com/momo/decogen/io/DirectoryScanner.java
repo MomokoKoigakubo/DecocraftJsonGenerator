@@ -1,4 +1,4 @@
-package com.momo.decogen;
+package com.momo.decogen.io;
 
 import java.io.IOException;
 import java.nio.file.Files;

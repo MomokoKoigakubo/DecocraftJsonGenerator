@@ -1,10 +1,9 @@
-package com.momo.decogen;
+package com.momo.decogen.update;
 
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.Hyperlink;
-import javafx.scene.layout.VBox;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -23,11 +22,8 @@ public class UpdateChecker {
     private static final String RELEASES_API = "https://api.github.com/repos/%s/%s/releases/latest";
     private static final String RELEASES_PAGE = "https://github.com/%s/%s/releases/latest";
 
-    private static final String CURRENT_VERSION = "1.0.0";
+    private static final String CURRENT_VERSION = "1.1.0";
 
-    /**
-     * Check for updates in background thread
-     */
     public static void checkForUpdatesAsync() {
         Thread updateThread = new Thread(() -> {
             try {
@@ -36,7 +32,6 @@ public class UpdateChecker {
                     Platform.runLater(() -> showUpdateDialog(latestVersion));
                 }
             } catch (Exception e) {
-                // Silently fail - don't bother user if update check fails
                 System.out.println("Update check failed: " + e.getMessage());
             }
         });
@@ -44,9 +39,6 @@ public class UpdateChecker {
         updateThread.start();
     }
 
-    /**
-     * Fetch the latest version tag from GitHub releases API
-     */
     private static String fetchLatestVersion() throws Exception {
         String apiUrl = String.format(RELEASES_API, GITHUB_OWNER, GITHUB_REPO);
         URL url = new URL(apiUrl);
@@ -68,7 +60,6 @@ public class UpdateChecker {
         }
         reader.close();
 
-        // Simple regex to extract tag_name from JSON response
         Pattern pattern = Pattern.compile("\"tag_name\"\\s*:\\s*\"v?([^\"]+)\"");
         Matcher matcher = pattern.matcher(response.toString());
         if (matcher.find()) {
@@ -77,9 +68,6 @@ public class UpdateChecker {
         return null;
     }
 
-    /**
-     * Compare version strings (e.g., "1.0.0" vs "1.1.0")
-     */
     private static boolean isNewerVersion(String latest, String current) {
         String[] latestParts = latest.split("\\.");
         String[] currentParts = current.split("\\.");
@@ -106,9 +94,6 @@ public class UpdateChecker {
         }
     }
 
-    /**
-     * Show update available dialog
-     */
     private static void showUpdateDialog(String newVersion) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Update Available");
@@ -128,9 +113,6 @@ public class UpdateChecker {
         }
     }
 
-    /**
-     * Open the GitHub releases page in the default browser
-     */
     private static void openReleasesPage() {
         try {
             String releasesUrl = String.format(RELEASES_PAGE, GITHUB_OWNER, GITHUB_REPO);
@@ -140,9 +122,6 @@ public class UpdateChecker {
         }
     }
 
-    /**
-     * Get the current version string
-     */
     public static String getCurrentVersion() {
         return CURRENT_VERSION;
     }

@@ -1,4 +1,4 @@
-package com.momo.decogen;
+package com.momo.decogen.model;
 
 /**
  * Represents an animation transition pair (from -> to).
