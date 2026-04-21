@@ -60,6 +60,16 @@ public class History {
     public boolean canUndo() { return !undoStack.isEmpty(); }
     public boolean canRedo() { return !redoStack.isEmpty(); }
 
+    public static <T> T deepCopy(T obj, Class<T> type) {
+        if (obj == null) return null;
+        return GSON.fromJson(GSON.toJson(obj), type);
+    }
+
+    public static boolean jsonEquals(Object a, Object b) {
+        if (a == null && b == null) return true;
+        return GSON.toJson(a).equals(GSON.toJson(b));
+    }
+
     private static Snapshot copy(List<DecoEntry> entries, List<String> unmatched) {
         String json = GSON.toJson(entries != null ? entries : new ArrayList<>());
         List<DecoEntry> deep = GSON.fromJson(json, LIST_TYPE);

@@ -41,9 +41,10 @@ public class Script {
     // Convenience helpers
 
     public void setToolModelSwitchLink(String link) {
-        Action a = new Action();
-        a.setLink(link);
-        this.tool_modelswitch = a;
+        if (this.tool_modelswitch == null) {
+            this.tool_modelswitch = new Action();
+        }
+        this.tool_modelswitch.setLink(link);
     }
 
     public void setOnUseLink(String link) {

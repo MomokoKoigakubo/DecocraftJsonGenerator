@@ -363,19 +363,13 @@ public class AppController {
 
                 String iconName = TextureMatcher.findMatchingIcon(modelName, suffix, textureFiles.keySet());
 
-                DecoEntry entry = new DecoEntry();
+                DecoEntry entry = History.deepCopy(templateEntry, DecoEntry.class);
                 String displayName = EntryBuilder.toDisplayName(modelName + "_" + suffix);
                 String decoref = (iconName != null) ? iconName : (modelName + "_" + suffix);
                 entry.setDecoref(decoref);
                 entry.setName(displayName);
                 entry.setModel(modelName);
                 entry.setMaterial(textureName);
-                entry.setTabs(templateEntry.getTabs());
-                entry.setType(templateEntry.getType());
-                entry.setScale(templateEntry.getScale());
-                entry.setTransparency(templateEntry.getTransparency());
-                entry.setHidden(templateEntry.getHidden());
-                entry.setCraftingColor(templateEntry.getCraftingColor().clone());
 
                 newEntries.add(entry);
 

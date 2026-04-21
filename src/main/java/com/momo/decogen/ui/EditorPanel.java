@@ -2,6 +2,7 @@ package com.momo.decogen.ui;
 
 import com.momo.decogen.bbmodel.BBModel;
 import com.momo.decogen.logic.DecoTypes;
+import com.momo.decogen.logic.History;
 import com.momo.decogen.logic.ModelInspector;
 import com.momo.decogen.logic.Tabs;
 import com.momo.decogen.model.Action;
@@ -30,6 +31,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class EditorPanel {
 
@@ -37,6 +41,12 @@ public class EditorPanel {
     private final VBox root;          // outer wrapper (scroll pane + buttons)
     private final VBox form;          // inside scroll pane
     private final Label editorTitle;
+
+    // Deep-copy of the entry last passed to loadEntry(). Apply diffs this
+    // against the current UI state and only write fields the user actually
+    // touched — so multi-select Apply never clobbers per-entry state the
+    // editor didn't surface.
+    private DecoEntry loadedSnapshot;
 
     // Identity
     private final TextField nameField;
@@ -547,6 +557,8 @@ public class EditorPanel {
         } else {
             for (ActionEditor ae : allActionEditors) ae.clear();
         }
+
+        loadedSnapshot = History.deepCopy(entry, DecoEntry.class);
     }
 
     public void clearFields() {
@@ -601,6 +613,11 @@ public class EditorPanel {
 
         particleHintLabel.setVisible(false);
         particleHintLabel.setManaged(false);
+
+        // Capture the blank UI state so multi-select Apply (which lands
+        // here via EntryListPanel) still has a diff baseline — anything
+        // the user touches after this is a real change.
+        loadedSnapshot = buildEntryFromUi();
     }
 
     // --- Save ---
@@ -608,133 +625,319 @@ public class EditorPanel {
     private void saveSelectedEntries() {
         List<DecoEntry> selected = controller.getEntryListView().getSelectionModel().getSelectedItems();
         if (selected.isEmpty()) return;
+        if (loadedSnapshot == null) return;
 
-        // Values that are applied only when non-empty (text fields)
-        String nameVal = nullIfEmpty(nameField.getText());
-        String modelVal = nullIfEmpty(modelField.getText());
-        String shapeVal = nullIfEmpty(shapeField.getText());
-        String materialVal = comboValue(materialDropdown);
-        String decorefVal = comboValue(decorefDropdown);
-        String tabsVal = comboValue(tabsDropdown);
-        String typeVal = comboValue(typeDropdown);
-        String defaultAnimVal = comboValue(defaultAnimationDropdown);
-        String lootVal = nullIfEmpty(lootField.getText());
-        String chainPatternVal = comboValue(chainPatternDropdown);
-
-        // Composite fields (only read when the composite checkbox is on)
-        String compositeModelVal = nullIfEmpty(compositeModelField.getText());
-        String compositeTextureVal = comboValue(compositeTextureDropdown);
-
-        // Lists (always apply — empty list means "clear")
-        List<String> chainModels = listFromLines(chainModelsArea.getText());
-        List<String> chainMaterials = listFromLines(chainMaterialsArea.getText());
-        List<String> structures = listFromLines(structuresArea.getText());
+        DecoEntry proposed = buildEntryFromUi();
+        DecoEntry loaded = loadedSnapshot;
 
         for (DecoEntry entry : selected) {
-            // Identity
-            if (nameVal != null) entry.setName(nameVal);
-            if (decorefVal != null) entry.setDecoref(decorefVal);
-            if (materialVal != null) {
-                entry.setMaterial(materialVal);
-                controller.getUnmatchedTextures().remove(materialVal);
-            }
-
-            // Rendering
-            if (modelVal != null) entry.setModel(modelVal);
-            entry.setScale(scaleSpinner.getValue());
-            if (shapeVal != null) entry.setShape(shapeVal);
-            entry.setTransparency(transparencyCheck.isSelected() ? Boolean.TRUE : null);
-            entry.setCulling(cullingDisableCheck.isSelected() ? Boolean.FALSE : null);
-
-            // Display
-            if (tabsVal != null) entry.setTabs(tabsVal);
-            if (typeVal != null) entry.setType(typeVal);
-            if (defaultAnimVal != null) entry.setDefaultAnimation(defaultAnimVal);
-
-            // Behavior
-            entry.setPassable(passableCheck.isSelected() ? Boolean.TRUE : null);
-            entry.setAboveWater(aboveWaterCheck.isSelected() ? Boolean.TRUE : null);
-            entry.setRotatable(rotatableCheck.isSelected() ? Boolean.TRUE : null);
-            if (hiddenCheck.isSelected()) {
-                entry.setHidden(Boolean.TRUE);
-                entry.setLoot(lootVal);
-            } else {
-                entry.setHidden(null);
-                entry.setLoot(null);
-            }
-            entry.setDisplayable(displayableCheck.isSelected() ? Boolean.TRUE : null);
-
-            // Composite
-            if (compositeCheck.isSelected()) {
-                Composite c = new Composite();
-                c.setModel(compositeModelVal);
-                c.setTexture(compositeTextureVal);
-                c.setTransparency(compositeTransparencyCheck.isSelected() ? Boolean.TRUE : null);
-                entry.setComposite(c);
-            } else {
-                entry.setComposite(null);
-            }
-
-            // Flipbook
-            if (flipbookCheck.isSelected()) {
-                Flipbook fb = entry.getFlipbook();
-                if (fb == null) {
-                    fb = new Flipbook();
-                    entry.setFlipbook(fb);
-                }
-                fb.setFrametime(flipbookFrametimeSpinner.getValue());
-                fb.setImages(flipbookImagesSpinner.getValue());
-            } else {
-                entry.setFlipbook(null);
-            }
-
-            // Chain
-            entry.setChainModels(chainModels.isEmpty() ? null : chainModels);
-            entry.setChainMaterials(chainMaterials.isEmpty() ? null : chainMaterials);
-            entry.setChainPattern(chainPatternVal);
-            entry.setLighting(lightingCheck.isSelected() ? lightingSpinner.getValue() : null);
-
-            // Growable
-            entry.setStructures(structures.isEmpty() ? null : structures);
-            entry.setInstant(instantCheck.isSelected() ? Boolean.TRUE : null);
-
-            // Script
-            Script script = entry.getScript();
-            Action onUse = onUseEditor.buildAction();
-            Action shiftOnUse = shiftOnUseEditor.buildAction();
-            Action added = addedEditor.buildAction();
-            Action trigger = triggerEditor.buildAction();
-            Action animStart = animationStartEditor.buildAction();
-            Action animEnd = animationEndEditor.buildAction();
-            Action toolSwitch = toolModelSwitchEditor.buildAction();
-            Integer lightVal = lightCheck.isSelected() ? lightSpinner.getValue() : null;
-            Integer counterVal = counterCheck.isSelected() ? counterSpinner.getValue() : null;
-
-            boolean anyScriptContent = onUse != null || shiftOnUse != null || added != null
-                    || trigger != null || animStart != null || animEnd != null || toolSwitch != null
-                    || lightVal != null || counterVal != null;
-
-            if (anyScriptContent) {
-                if (script == null) {
-                    script = new Script();
-                    entry.setScript(script);
-                }
-                script.setOnUse(onUse);
-                script.setShiftOnUse(shiftOnUse);
-                script.setAdded(added);
-                script.setTrigger(trigger);
-                script.setAnimationStart(animStart);
-                script.setAnimationEnd(animEnd);
-                script.setToolModelSwitch(toolSwitch);
-                script.setLight(lightVal);
-                script.setCounter(counterVal);
-            } else {
-                entry.setScript(null);
-            }
+            applyDiff(entry, proposed, loaded);
         }
+
+        // Refresh the diff baseline so a subsequent Apply diffs against
+        // the post-save UI state rather than the stale load-time snapshot.
+        // Without this, un-checking an option the user just applied (e.g.
+        // light) matches the original load state and the diff sees no
+        // change, so the field never gets cleared on the target.
+        loadedSnapshot = proposed;
 
         controller.getEntryListView().refresh();
         controller.updateJsonPreview();
+    }
+
+    /**
+     * Build a DecoEntry reflecting the current state of every editor control,
+     * using the same field/checkbox coupling rules as loadEntry() so a
+     * clean round-trip (load then save with no user input) produces an
+     * entry equal to the one that was loaded.
+     */
+    private DecoEntry buildEntryFromUi() {
+        DecoEntry e = new DecoEntry();
+
+        e.setName(nullIfEmpty(nameField.getText()));
+        e.setDecoref(comboValue(decorefDropdown));
+        e.setMaterial(comboValue(materialDropdown));
+
+        e.setModel(nullIfEmpty(modelField.getText()));
+        e.setScale(scaleSpinner.getValue());
+        e.setShape(nullIfEmpty(shapeField.getText()));
+        e.setTransparency(transparencyCheck.isSelected() ? Boolean.TRUE : null);
+        e.setCulling(cullingDisableCheck.isSelected() ? Boolean.FALSE : null);
+
+        e.setTabs(comboValue(tabsDropdown));
+        e.setType(comboValue(typeDropdown));
+        e.setDefaultAnimation(comboValue(defaultAnimationDropdown));
+
+        e.setPassable(passableCheck.isSelected() ? Boolean.TRUE : null);
+        e.setAboveWater(aboveWaterCheck.isSelected() ? Boolean.TRUE : null);
+        e.setRotatable(rotatableCheck.isSelected() ? Boolean.TRUE : null);
+        if (hiddenCheck.isSelected()) {
+            e.setHidden(Boolean.TRUE);
+            e.setLoot(nullIfEmpty(lootField.getText()));
+        }
+        e.setDisplayable(displayableCheck.isSelected() ? Boolean.TRUE : null);
+
+        if (compositeCheck.isSelected()) {
+            Composite c = new Composite();
+            c.setModel(nullIfEmpty(compositeModelField.getText()));
+            c.setTexture(comboValue(compositeTextureDropdown));
+            c.setTransparency(compositeTransparencyCheck.isSelected() ? Boolean.TRUE : null);
+            e.setComposite(c);
+        }
+
+        if (flipbookCheck.isSelected()) {
+            Flipbook fb = new Flipbook();
+            fb.setFrametime(flipbookFrametimeSpinner.getValue());
+            fb.setImages(flipbookImagesSpinner.getValue());
+            e.setFlipbook(fb);
+        }
+
+        List<String> chainModels = listFromLines(chainModelsArea.getText());
+        List<String> chainMaterials = listFromLines(chainMaterialsArea.getText());
+        e.setChainModels(chainModels.isEmpty() ? null : chainModels);
+        e.setChainMaterials(chainMaterials.isEmpty() ? null : chainMaterials);
+        e.setChainPattern(comboValue(chainPatternDropdown));
+        e.setLighting(lightingCheck.isSelected() ? lightingSpinner.getValue() : null);
+
+        List<String> structures = listFromLines(structuresArea.getText());
+        e.setStructures(structures.isEmpty() ? null : structures);
+        e.setInstant(instantCheck.isSelected() ? Boolean.TRUE : null);
+
+        Action onUse = onUseEditor.buildAction();
+        Action shiftOnUse = shiftOnUseEditor.buildAction();
+        Action added = addedEditor.buildAction();
+        Action trigger = triggerEditor.buildAction();
+        Action animStart = animationStartEditor.buildAction();
+        Action animEnd = animationEndEditor.buildAction();
+        Action toolSwitch = toolModelSwitchEditor.buildAction();
+        Integer lightVal = lightCheck.isSelected() ? lightSpinner.getValue() : null;
+        Integer counterVal = counterCheck.isSelected() ? counterSpinner.getValue() : null;
+
+        boolean anyScriptContent = onUse != null || shiftOnUse != null || added != null
+                || trigger != null || animStart != null || animEnd != null || toolSwitch != null
+                || lightVal != null || counterVal != null;
+        if (anyScriptContent) {
+            Script s = new Script();
+            s.setOnUse(onUse);
+            s.setShiftOnUse(shiftOnUse);
+            s.setAdded(added);
+            s.setTrigger(trigger);
+            s.setAnimationStart(animStart);
+            s.setAnimationEnd(animEnd);
+            s.setToolModelSwitch(toolSwitch);
+            s.setLight(lightVal);
+            s.setCounter(counterVal);
+            e.setScript(s);
+        }
+
+        return e;
+    }
+
+    /**
+     * Write only the fields where {@code proposed} differs from
+     * {@code loaded} onto {@code target}. Fields the user didn't touch in
+     * the editor stay as-is on the target — so multi-select Apply never
+     * flattens divergent per-entry state.
+     */
+    private void applyDiff(DecoEntry target, DecoEntry proposed, DecoEntry loaded) {
+        if (!Objects.equals(proposed.getName(), loaded.getName())) {
+            target.setName(proposed.getName());
+        }
+        if (!Objects.equals(proposed.getDecoref(), loaded.getDecoref())) {
+            target.setDecoref(proposed.getDecoref());
+        }
+        if (!Objects.equals(proposed.getMaterial(), loaded.getMaterial())) {
+            target.setMaterial(proposed.getMaterial());
+            if (proposed.getMaterial() != null) {
+                controller.getUnmatchedTextures().remove(proposed.getMaterial());
+            }
+        }
+        if (!Objects.equals(proposed.getModel(), loaded.getModel())) {
+            target.setModel(proposed.getModel());
+        }
+        if (!Objects.equals(proposed.getScale(), loaded.getScale())) {
+            target.setScale(proposed.getScale());
+        }
+        if (!Objects.equals(proposed.getShape(), loaded.getShape())) {
+            target.setShape(proposed.getShape());
+        }
+        if (!Objects.equals(proposed.getTransparency(), loaded.getTransparency())) {
+            target.setTransparency(proposed.getTransparency());
+        }
+        if (!Objects.equals(proposed.getCulling(), loaded.getCulling())) {
+            target.setCulling(proposed.getCulling());
+        }
+        if (!Objects.equals(proposed.getTabs(), loaded.getTabs())) {
+            target.setTabs(proposed.getTabs());
+        }
+        if (!Objects.equals(proposed.getType(), loaded.getType())) {
+            target.setType(proposed.getType());
+        }
+        if (!Objects.equals(proposed.getDefaultAnimation(), loaded.getDefaultAnimation())) {
+            target.setDefaultAnimation(proposed.getDefaultAnimation());
+        }
+        if (!Objects.equals(proposed.getPassable(), loaded.getPassable())) {
+            target.setPassable(proposed.getPassable());
+        }
+        if (!Objects.equals(proposed.getAboveWater(), loaded.getAboveWater())) {
+            target.setAboveWater(proposed.getAboveWater());
+        }
+        if (!Objects.equals(proposed.getRotatable(), loaded.getRotatable())) {
+            target.setRotatable(proposed.getRotatable());
+        }
+        if (!Objects.equals(proposed.getHidden(), loaded.getHidden())) {
+            target.setHidden(proposed.getHidden());
+        }
+        if (!Objects.equals(proposed.getLoot(), loaded.getLoot())) {
+            target.setLoot(proposed.getLoot());
+        }
+        if (!Objects.equals(proposed.getDisplayable(), loaded.getDisplayable())) {
+            target.setDisplayable(proposed.getDisplayable());
+        }
+
+        if (!History.jsonEquals(proposed.getComposite(), loaded.getComposite())) {
+            target.setComposite(History.deepCopy(proposed.getComposite(), Composite.class));
+        }
+        if (!History.jsonEquals(proposed.getFlipbook(), loaded.getFlipbook())) {
+            target.setFlipbook(History.deepCopy(proposed.getFlipbook(), Flipbook.class));
+        }
+
+        if (!Objects.equals(proposed.getChainModels(), loaded.getChainModels())) {
+            target.setChainModels(proposed.getChainModels() != null ? new ArrayList<>(proposed.getChainModels()) : null);
+        }
+        if (!Objects.equals(proposed.getChainMaterials(), loaded.getChainMaterials())) {
+            target.setChainMaterials(proposed.getChainMaterials() != null ? new ArrayList<>(proposed.getChainMaterials()) : null);
+        }
+        if (!Objects.equals(proposed.getChainPattern(), loaded.getChainPattern())) {
+            target.setChainPattern(proposed.getChainPattern());
+        }
+        if (!Objects.equals(proposed.getLighting(), loaded.getLighting())) {
+            target.setLighting(proposed.getLighting());
+        }
+
+        if (!Objects.equals(proposed.getStructures(), loaded.getStructures())) {
+            target.setStructures(proposed.getStructures() != null ? new ArrayList<>(proposed.getStructures()) : null);
+        }
+        if (!Objects.equals(proposed.getInstant(), loaded.getInstant())) {
+            target.setInstant(proposed.getInstant());
+        }
+
+        applyScriptDiff(target, proposed.getScript(), loaded.getScript());
+    }
+
+    /**
+     * Diff Script actions + light/counter against the loaded snapshot.
+     * Each Action slot is diffed at field granularity so an Apply that
+     * only touches, say, on_use.storage doesn't wipe on_use.link on the
+     * target entries. Actions unchanged as a whole are skipped entirely.
+     */
+    private void applyScriptDiff(DecoEntry target, Script proposed, Script loaded) {
+        if (History.jsonEquals(proposed, loaded)) return;
+
+        Script targetScript = target.getScript();
+        if (targetScript == null) {
+            targetScript = new Script();
+            target.setScript(targetScript);
+        }
+        final Script ts = targetScript;
+
+        applyActionDiff(ts::getOnUse, ts::setOnUse,
+                proposed != null ? proposed.getOnUse() : null,
+                loaded != null ? loaded.getOnUse() : null);
+        applyActionDiff(ts::getShiftOnUse, ts::setShiftOnUse,
+                proposed != null ? proposed.getShiftOnUse() : null,
+                loaded != null ? loaded.getShiftOnUse() : null);
+        applyActionDiff(ts::getAdded, ts::setAdded,
+                proposed != null ? proposed.getAdded() : null,
+                loaded != null ? loaded.getAdded() : null);
+        applyActionDiff(ts::getTrigger, ts::setTrigger,
+                proposed != null ? proposed.getTrigger() : null,
+                loaded != null ? loaded.getTrigger() : null);
+        applyActionDiff(ts::getAnimationStart, ts::setAnimationStart,
+                proposed != null ? proposed.getAnimationStart() : null,
+                loaded != null ? loaded.getAnimationStart() : null);
+        applyActionDiff(ts::getAnimationEnd, ts::setAnimationEnd,
+                proposed != null ? proposed.getAnimationEnd() : null,
+                loaded != null ? loaded.getAnimationEnd() : null);
+        applyActionDiff(ts::getToolModelSwitch, ts::setToolModelSwitch,
+                proposed != null ? proposed.getToolModelSwitch() : null,
+                loaded != null ? loaded.getToolModelSwitch() : null);
+
+        Integer pLight = proposed != null ? proposed.getLight() : null;
+        Integer lLight = loaded != null ? loaded.getLight() : null;
+        if (!Objects.equals(pLight, lLight)) ts.setLight(pLight);
+
+        Integer pCounter = proposed != null ? proposed.getCounter() : null;
+        Integer lCounter = loaded != null ? loaded.getCounter() : null;
+        if (!Objects.equals(pCounter, lCounter)) ts.setCounter(pCounter);
+
+        if (isScriptEmpty(ts)) target.setScript(null);
+    }
+
+    /**
+     * Diff one Action (link/sound/animations/sounds/storage) in place:
+     * ensure the target slot exists only if any field actually changed,
+     * write only the fields that differ, and clear the slot if all
+     * fields end up empty. Fields the user didn't touch on a target
+     * entry are left alone — so adding storage via multi-select won't
+     * wipe link, animations, or sounds that other entries already had.
+     */
+    private void applyActionDiff(Supplier<Action> getter, Consumer<Action> setter,
+                                 Action proposed, Action loaded) {
+        String pLink = proposed != null ? proposed.getLink() : null;
+        String lLink = loaded != null ? loaded.getLink() : null;
+        String pSound = proposed != null ? proposed.getSound() : null;
+        String lSound = loaded != null ? loaded.getSound() : null;
+        List<AnimationPair> pAnims = proposed != null ? proposed.getAnimations() : null;
+        List<AnimationPair> lAnims = loaded != null ? loaded.getAnimations() : null;
+        List<SoundPair> pSounds = proposed != null ? proposed.getSounds() : null;
+        List<SoundPair> lSounds = loaded != null ? loaded.getSounds() : null;
+        int[] pStorage = proposed != null ? proposed.getStorage() : null;
+        int[] lStorage = loaded != null ? loaded.getStorage() : null;
+
+        boolean linkChanged = !Objects.equals(pLink, lLink);
+        boolean soundChanged = !Objects.equals(pSound, lSound);
+        boolean animsChanged = !History.jsonEquals(pAnims, lAnims);
+        boolean soundsChanged = !History.jsonEquals(pSounds, lSounds);
+        boolean storageChanged = !Arrays.equals(pStorage, lStorage);
+
+        if (!(linkChanged || soundChanged || animsChanged || soundsChanged || storageChanged)) {
+            return;
+        }
+
+        Action targetAction = getter.get();
+        if (targetAction == null) {
+            targetAction = new Action();
+            setter.accept(targetAction);
+        }
+        if (linkChanged) targetAction.setLink(pLink);
+        if (soundChanged) targetAction.setSound(pSound);
+        if (animsChanged) targetAction.setAnimations(cloneAnimationPairs(pAnims));
+        if (soundsChanged) targetAction.setSounds(cloneSoundPairs(pSounds));
+        if (storageChanged) targetAction.setStorage(pStorage != null ? pStorage.clone() : null);
+
+        if (targetAction.isEmpty()) setter.accept(null);
+    }
+
+    private static List<AnimationPair> cloneAnimationPairs(List<AnimationPair> list) {
+        if (list == null) return null;
+        List<AnimationPair> copy = new ArrayList<>(list.size());
+        for (AnimationPair p : list) copy.add(new AnimationPair(p.getFrom(), p.getTo()));
+        return copy;
+    }
+
+    private static List<SoundPair> cloneSoundPairs(List<SoundPair> list) {
+        if (list == null) return null;
+        List<SoundPair> copy = new ArrayList<>(list.size());
+        for (SoundPair p : list) copy.add(new SoundPair(p.getFrom(), p.getTo(), p.getSound(), p.getLoop()));
+        return copy;
+    }
+
+    private static boolean isScriptEmpty(Script s) {
+        return s.getOnUse() == null && s.getShiftOnUse() == null && s.getAdded() == null
+                && s.getTrigger() == null && s.getAnimationStart() == null
+                && s.getAnimationEnd() == null && s.getToolModelSwitch() == null
+                && s.getLight() == null && s.getCounter() == null;
     }
 
     // --- Duplicate ---
