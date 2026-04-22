@@ -127,19 +127,22 @@ public class AppController {
 
             int created = 0;
 
-            // 1) Sweep unmatched textures for this model: try to fill an empty
-            //    icon entry first, else create a new texture entry.
-            for (String textureName : new ArrayList<>(unmatchedTextures)) {
-                String tm = TextureMatcher.findMatchingModel(textureName, modelFiles.keySet());
-                if (tm == null || !tm.equals(modelName)) continue;
+            // 1) For every known texture whose resolved model set includes this
+            //    new model, ensure an entry exists. This covers textures still
+            //    sitting in unmatchedTextures AND textures already placed on a
+            //    previously-loaded base model (when this new model is a
+            //    state-variant sibling like "locker_open" of "locker").
+            Set<String> textureCandidates = new java.util.LinkedHashSet<>();
+            textureCandidates.addAll(unmatchedTextures);
+            textureCandidates.addAll(textureFiles.keySet());
+            for (String textureName : textureCandidates) {
+                if (iconFiles.containsKey(textureName)) continue;
+                List<String> resolved = resolveModelsForTexture(textureName);
+                if (!resolved.contains(modelName)) continue;
+                if (entryExists(modelName, textureName)) continue;
 
-                DecoEntry emptyIcon = findEmptyIconEntryForTexture(modelName, textureName);
-                if (emptyIcon != null) {
-                    emptyIcon.setMaterial(textureName);
-                    unmatchedTextures.remove(textureName);
-                } else {
-                    createEntryForTexture(textureName, modelName);
-                }
+                ensureEntryForTextureModel(textureName, modelName);
+                unmatchedTextures.remove(textureName);
                 created++;
             }
 
@@ -177,8 +180,8 @@ public class AppController {
         String textureName = DirectoryScanner.getStem(file.toPath());
         textureFiles.put(textureName, file.toPath());
 
-        String matchedModel = TextureMatcher.findMatchingModel(textureName, modelFiles.keySet());
-        if (matchedModel == null) {
+        List<String> resolved = resolveModelsForTexture(textureName);
+        if (resolved.isEmpty()) {
             unmatchedTextures.add(textureName);
             if (unmatchedListView != null) {
                 unmatchedListView.getItems().setAll(unmatchedTextures);
@@ -187,21 +190,14 @@ public class AppController {
             return;
         }
 
-        // Prefer to fill an existing empty icon entry so we don't duplicate.
-        DecoEntry emptyIcon = findEmptyIconEntryForTexture(matchedModel, textureName);
-        if (emptyIcon != null) {
-            emptyIcon.setMaterial(textureName);
-            unmatchedTextures.remove(textureName);
-            refreshEntryList();
-            System.out.println("Filled icon entry " + emptyIcon.getDecoref() + " <- " + textureName);
-            return;
+        for (String modelName : resolved) {
+            if (entryExists(modelName, textureName)) continue;
+            removePlaceholdersForModel(modelName);
+            ensureEntryForTextureModel(textureName, modelName);
+            System.out.println("Created entry: " + textureName + " -> " + modelName);
         }
-
-        // No icon entry waiting — create a fresh entry, and clear any placeholder
-        // for this model that we would otherwise be shadowing.
-        removePlaceholdersForModel(matchedModel);
-        createEntryForTexture(textureName, matchedModel);
-        System.out.println("Created entry: " + textureName + " -> " + matchedModel);
+        unmatchedTextures.remove(textureName);
+        refreshEntryList();
     }
 
     public void addIcon(File file) {
@@ -305,31 +301,94 @@ public class AppController {
         return entries.stream().anyMatch(e -> iconName.equals(e.getDecoref()));
     }
 
+    /**
+     * Every model a texture should produce an entry for: the longest-prefix
+     * match, plus any state-variant sibling model (base + "_open"/"_on"/etc.)
+     * that exists in the project. Lets "locker_yellow" populate both the
+     * "locker" entry and the "locker_open" entry even though the texture name
+     * has no state suffix of its own.
+     */
+    private List<String> resolveModelsForTexture(String textureName) {
+        String best = TextureMatcher.findMatchingModel(textureName, modelFiles.keySet());
+        if (best == null) return Collections.emptyList();
+        List<String> out = new ArrayList<>();
+        out.add(best);
+        String bestLower = best.toLowerCase();
+        for (String other : modelFiles.keySet()) {
+            if (other.equalsIgnoreCase(best)) continue;
+            String otherLower = other.toLowerCase();
+            if (!otherLower.startsWith(bestLower + "_")) continue;
+            String remainder = otherLower.substring(bestLower.length() + 1);
+            if (ChainBuilder.KNOWN_STATE_SUFFIXES.contains(remainder)) {
+                out.add(other);
+            }
+        }
+        return out;
+    }
+
+    /** Returns "open"/"on"/... if variantModel is baseModel + "_<state>", else null. */
+    private String stateSuffixFor(String baseModel, String variantModel) {
+        if (baseModel == null || variantModel == null) return null;
+        String bl = baseModel.toLowerCase();
+        String vl = variantModel.toLowerCase();
+        if (!vl.startsWith(bl + "_")) return null;
+        String rem = vl.substring(bl.length() + 1);
+        return ChainBuilder.KNOWN_STATE_SUFFIXES.contains(rem) ? rem : null;
+    }
+
+    private boolean entryExists(String modelName, String textureName) {
+        for (DecoEntry e : entries) {
+            if (modelName.equals(e.getModel()) && textureName.equals(e.getMaterial())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Create (or skip if already present) an entry for a specific (texture,
+     * model) pair. For state-variant models, decoref gets the state suffix
+     * appended so linkStatePairs can later pair them by stripping that token.
+     */
+    private void ensureEntryForTextureModel(String textureName, String modelName) {
+        if (entryExists(modelName, textureName)) return;
+
+        DecoEntry emptyIcon = findEmptyIconEntryForTexture(modelName, textureName);
+        if (emptyIcon != null) {
+            emptyIcon.setMaterial(textureName);
+            return;
+        }
+
+        String baseModel = TextureMatcher.findMatchingModel(textureName, modelFiles.keySet());
+        String stateSuffix = baseModel == null ? null : stateSuffixFor(baseModel, modelName);
+        String decorefName = stateSuffix != null ? textureName + "_" + stateSuffix : textureName;
+
+        String displayName = EntryBuilder.toDisplayName(decorefName);
+        DecoEntry entry = new DecoEntry(displayName, modelName, textureName, "clutter");
+        entry.setDecoref(decorefName);
+
+        BBModel model = parsedModels.get(modelName);
+        if (model != null) entry.autoDetectType(model);
+
+        entries.add(entry);
+    }
+
     // --- Auto-match / pair ---
 
     public void autoMatchTextures() {
         snapshot();
+        // For each unmatched texture, ensure an entry exists for every model
+        // it resolves to — the primary (longest-prefix) model plus any
+        // state-variant sibling models. "locker_yellow" therefore populates
+        // both "locker" and "locker_open" when both models are loaded.
         for (String textureName : new ArrayList<>(unmatchedTextures)) {
-            for (DecoEntry entry : entries) {
-                if (entry.getMaterial() == null && TextureMatcher.textureMatchesModel(textureName, entry.getModel())) {
-                    entry.setMaterial(textureName);
-                    unmatchedTextures.remove(textureName);
-                    break;
-                }
+            List<String> resolved = resolveModelsForTexture(textureName);
+            if (resolved.isEmpty()) continue;
+            for (String modelName : resolved) {
+                if (entryExists(modelName, textureName)) continue;
+                removePlaceholdersForModel(modelName);
+                ensureEntryForTextureModel(textureName, modelName);
+                System.out.println("Created entry for texture: " + textureName + " -> " + modelName);
             }
-        }
-
-        for (String textureName : new ArrayList<>(unmatchedTextures)) {
-            for (String modelName : modelFiles.keySet()) {
-                if (TextureMatcher.textureMatchesModel(textureName, modelName)) {
-                    String displayName = EntryBuilder.toDisplayName(textureName);
-                    DecoEntry entry = new DecoEntry(displayName, modelName, textureName, "clutter");
-                    entries.add(entry);
-                    unmatchedTextures.remove(textureName);
-                    System.out.println("Created entry for texture: " + textureName);
-                    break;
-                }
-            }
+            unmatchedTextures.remove(textureName);
         }
 
         refreshEntryList();
