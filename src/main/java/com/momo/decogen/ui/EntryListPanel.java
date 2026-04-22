@@ -110,21 +110,18 @@ public class EntryListPanel {
                 if (db.hasString() && db.getString().startsWith(ROW_PAYLOAD)
                         && event.getGestureSource() != cell) {
                     event.acceptTransferModes(TransferMode.MOVE);
-                    // Top half = drop above; bottom half = drop below.
-                    // Empty cell (past last row) gets a top-edge marker so the
-                    // user sees where the tail-end drop will land.
-                    String border;
-                    if (cell.isEmpty()) {
-                        border = " -fx-border-color: #5865F2; -fx-border-width: 2 0 0 0;";
-                    } else {
+                    // Only draw the drop-indicator on real rows — painting a
+                    // background on empty cells would leave phantom "gray
+                    // entries" past the last row after the drag leaves.
+                    if (!cell.isEmpty()) {
                         boolean above = event.getY() < cell.getHeight() / 2.0;
-                        border = above
+                        String border = above
                                 ? " -fx-border-color: #5865F2; -fx-border-width: 2 0 0 0;"
                                 : " -fx-border-color: #5865F2; -fx-border-width: 0 0 2 0;";
-                    }
-                    cell.setStyle(baseCellStyle(cell.isSelected()) + border);
-                    if (!cell.getStyleClass().contains("drop-target")) {
-                        cell.getStyleClass().add("drop-target");
+                        cell.setStyle(baseCellStyle(cell.isSelected()) + border);
+                        if (!cell.getStyleClass().contains("drop-target")) {
+                            cell.getStyleClass().add("drop-target");
+                        }
                     }
                     event.consume();
                 }
@@ -132,7 +129,13 @@ public class EntryListPanel {
 
             cell.setOnDragExited(event -> {
                 if (cell.getStyleClass().remove("drop-target")) {
-                    cell.setStyle(baseCellStyle(cell.isSelected()));
+                    // Empty cells must return to transparent; filled cells get
+                    // their normal row background back.
+                    if (cell.isEmpty()) {
+                        cell.setStyle("-fx-background-color: transparent;");
+                    } else {
+                        cell.setStyle(baseCellStyle(cell.isSelected()));
+                    }
                 }
             });
 
