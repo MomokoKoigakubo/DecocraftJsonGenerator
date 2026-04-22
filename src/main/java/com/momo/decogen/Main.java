@@ -25,6 +25,7 @@ public class Main extends Application {
     @Override
     public void start(Stage stage) {
         AppController controller = new AppController();
+        controller.setPrimaryStage(stage);
 
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color: #36393f;");
@@ -87,7 +88,7 @@ public class Main extends Application {
 
         stage.show();
 
-        UpdateChecker.checkForUpdatesAsync();
+        UpdateChecker.checkForUpdatesAsync(stage);
     }
 
     public static void main(String[] args) {

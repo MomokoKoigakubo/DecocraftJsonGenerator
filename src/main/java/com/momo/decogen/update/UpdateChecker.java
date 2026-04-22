@@ -3,6 +3,7 @@ package com.momo.decogen.update;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
+import javafx.stage.Stage;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -22,14 +23,18 @@ public class UpdateChecker {
     private static final String RELEASES_API = "https://api.github.com/repos/%s/%s/releases/latest";
     private static final String RELEASES_PAGE = "https://github.com/%s/%s/releases/latest";
 
-    private static final String CURRENT_VERSION = "1.2.1";
+    private static final String CURRENT_VERSION = "1.2.2";
 
     public static void checkForUpdatesAsync() {
+        checkForUpdatesAsync(null);
+    }
+
+    public static void checkForUpdatesAsync(Stage owner) {
         Thread updateThread = new Thread(() -> {
             try {
                 String latestVersion = fetchLatestVersion();
                 if (latestVersion != null && isNewerVersion(latestVersion, CURRENT_VERSION)) {
-                    Platform.runLater(() -> showUpdateDialog(latestVersion));
+                    Platform.runLater(() -> showUpdateDialog(latestVersion, owner));
                 }
             } catch (Exception e) {
                 System.out.println("Update check failed: " + e.getMessage());
@@ -94,7 +99,7 @@ public class UpdateChecker {
         }
     }
 
-    private static void showUpdateDialog(String newVersion) {
+    private static void showUpdateDialog(String newVersion, Stage owner) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Update Available");
         alert.setHeaderText("A new version is available!");
@@ -102,6 +107,7 @@ public class UpdateChecker {
             "Current version: %s\nNew version: %s\n\nWould you like to download the update?",
             CURRENT_VERSION, newVersion
         ));
+        if (owner != null) alert.initOwner(owner);
 
         ButtonType downloadBtn = new ButtonType("Download");
         ButtonType laterBtn = new ButtonType("Later");

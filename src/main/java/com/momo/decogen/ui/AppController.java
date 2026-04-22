@@ -60,6 +60,9 @@ public class AppController {
     private Label iconLabel;
     private TextArea jsonPreview;
     private EditorPanel editorPanel;
+    // Needed so dialogs can initOwner() — unowned modals un-maximize the
+    // parent on Linux (GNOME/mutter).
+    private Stage primaryStage;
 
     // --- Registration ---
     public void setEntryListView(ListView<DecoEntry> v) { this.entryListView = v; }
@@ -68,6 +71,8 @@ public class AppController {
     public void setIconLabel(Label l) { this.iconLabel = l; }
     public void setJsonPreview(TextArea a) { this.jsonPreview = a; }
     public void setEditorPanel(EditorPanel p) { this.editorPanel = p; }
+    public void setPrimaryStage(Stage s) { this.primaryStage = s; }
+    public Stage getPrimaryStage() { return primaryStage; }
 
     // --- State accessors ---
     public ObservableList<DecoEntry> getEntries() { return entries; }
@@ -515,6 +520,7 @@ public class AppController {
         content.setPadding(new Insets(10));
 
         Dialog<ButtonType> dialog = new Dialog<>();
+        if (primaryStage != null) dialog.initOwner(primaryStage);
         dialog.setTitle("Link Pairs");
         dialog.setHeaderText("Link base \u2194 variant entries via on_use.");
         dialog.getDialogPane().setContent(content);
@@ -590,6 +596,7 @@ public class AppController {
         content.setPadding(new Insets(10));
 
         Dialog<ButtonType> dialog = new Dialog<>();
+        if (primaryStage != null) dialog.initOwner(primaryStage);
         dialog.setTitle("Normalize");
         dialog.setHeaderText("Pick a word and the fields to strip it from.");
         dialog.getDialogPane().setContent(content);
@@ -702,6 +709,7 @@ public class AppController {
         content.setPadding(new Insets(10));
 
         Dialog<ButtonType> dialog = new Dialog<>();
+        if (primaryStage != null) dialog.initOwner(primaryStage);
         dialog.setTitle("Add Word");
         dialog.setHeaderText("Pick a word and where to insert it in every entry.");
         dialog.getDialogPane().setContent(content);
@@ -873,6 +881,7 @@ public class AppController {
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
+        if (primaryStage != null) alert.initOwner(primaryStage);
         alert.showAndWait();
     }
 

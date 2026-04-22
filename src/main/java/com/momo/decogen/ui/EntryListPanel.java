@@ -110,10 +110,21 @@ public class EntryListPanel {
                 if (db.hasString() && db.getString().startsWith(ROW_PAYLOAD)
                         && event.getGestureSource() != cell) {
                     event.acceptTransferModes(TransferMode.MOVE);
-                    if (!cell.isEmpty() && !cell.getStyleClass().contains("drop-target")) {
+                    // Top half = drop above; bottom half = drop below.
+                    // Empty cell (past last row) gets a top-edge marker so the
+                    // user sees where the tail-end drop will land.
+                    String border;
+                    if (cell.isEmpty()) {
+                        border = " -fx-border-color: #5865F2; -fx-border-width: 2 0 0 0;";
+                    } else {
+                        boolean above = event.getY() < cell.getHeight() / 2.0;
+                        border = above
+                                ? " -fx-border-color: #5865F2; -fx-border-width: 2 0 0 0;"
+                                : " -fx-border-color: #5865F2; -fx-border-width: 0 0 2 0;";
+                    }
+                    cell.setStyle(baseCellStyle(cell.isSelected()) + border);
+                    if (!cell.getStyleClass().contains("drop-target")) {
                         cell.getStyleClass().add("drop-target");
-                        cell.setStyle(baseCellStyle(cell.isSelected())
-                                + " -fx-border-color: #5865F2; -fx-border-width: 0 0 2 0;");
                     }
                     event.consume();
                 }
@@ -135,23 +146,34 @@ public class EntryListPanel {
                     } catch (NumberFormatException ex) {
                         sourceIdx = -1;
                     }
-                    int rawTarget = cell.isEmpty() ? controller.getEntries().size() : cell.getIndex();
-                    if (sourceIdx >= 0 && sourceIdx < controller.getEntries().size()
-                            && rawTarget >= 0 && rawTarget != sourceIdx) {
-                        controller.snapshot();
-                        DecoEntry moved = controller.getEntries().remove(sourceIdx);
-                        // Dragging down (rawTarget > sourceIdx): insert AFTER the target row.
-                        // After removal, the target's original index becomes the slot
-                        // immediately after it, so we don't decrement.
-                        // Dragging up (rawTarget < sourceIdx): insert BEFORE the target row.
-                        int insertAt = rawTarget;
-                        if (insertAt > controller.getEntries().size()) {
-                            insertAt = controller.getEntries().size();
+                    int size = controller.getEntries().size();
+                    // Insertion index in the PRE-REMOVAL list: top half -> at
+                    // target index (above target); bottom half -> target+1
+                    // (below target); empty cell -> end of list.
+                    int insertAtPreRemove;
+                    if (cell.isEmpty()) {
+                        insertAtPreRemove = size;
+                    } else {
+                        int tgt = cell.getIndex();
+                        boolean above = event.getY() < cell.getHeight() / 2.0;
+                        insertAtPreRemove = above ? tgt : tgt + 1;
+                    }
+                    if (sourceIdx >= 0 && sourceIdx < size) {
+                        int insertAt = insertAtPreRemove;
+                        // Shift down by one if we remove a row that sat before
+                        // the target slot — indices after sourceIdx slide up.
+                        if (sourceIdx < insertAt) insertAt -= 1;
+                        if (insertAt != sourceIdx) {
+                            controller.snapshot();
+                            DecoEntry moved = controller.getEntries().remove(sourceIdx);
+                            int maxIdx = controller.getEntries().size();
+                            if (insertAt < 0) insertAt = 0;
+                            if (insertAt > maxIdx) insertAt = maxIdx;
+                            controller.getEntries().add(insertAt, moved);
+                            controller.updateJsonPreview();
+                            listView.getSelectionModel().clearAndSelect(insertAt);
+                            success = true;
                         }
-                        controller.getEntries().add(insertAt, moved);
-                        controller.updateJsonPreview();
-                        listView.getSelectionModel().clearAndSelect(insertAt);
-                        success = true;
                     }
                     event.setDropCompleted(success);
                     event.consume();
