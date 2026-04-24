@@ -3,6 +3,7 @@ package com.momo.decogen.update;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.io.BufferedReader;
@@ -23,7 +24,7 @@ public class UpdateChecker {
     private static final String RELEASES_API = "https://api.github.com/repos/%s/%s/releases/latest";
     private static final String RELEASES_PAGE = "https://github.com/%s/%s/releases/latest";
 
-    private static final String CURRENT_VERSION = "1.2.4";
+    private static final String CURRENT_VERSION = "1.2.5";
 
     public static void checkForUpdatesAsync() {
         checkForUpdatesAsync(null);
@@ -107,13 +108,24 @@ public class UpdateChecker {
             "Current version: %s\nNew version: %s\n\nWould you like to download the update?",
             CURRENT_VERSION, newVersion
         ));
-        if (owner != null) alert.initOwner(owner);
+        if (owner != null) {
+            alert.initOwner(owner);
+            alert.initModality(Modality.WINDOW_MODAL);
+        }
 
         ButtonType downloadBtn = new ButtonType("Download");
         ButtonType laterBtn = new ButtonType("Later");
         alert.getButtonTypes().setAll(downloadBtn, laterBtn);
 
+        boolean wasMaximized = owner != null && owner.isMaximized();
+        boolean wasFullScreen = owner != null && owner.isFullScreen();
         Optional<ButtonType> result = alert.showAndWait();
+        if (owner != null && (wasMaximized || wasFullScreen)) {
+            Platform.runLater(() -> {
+                if (wasFullScreen && !owner.isFullScreen()) owner.setFullScreen(true);
+                if (wasMaximized && !owner.isMaximized()) owner.setMaximized(true);
+            });
+        }
         if (result.isPresent() && result.get() == downloadBtn) {
             openReleasesPage();
         }

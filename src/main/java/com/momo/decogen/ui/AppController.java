@@ -9,6 +9,7 @@ import com.momo.decogen.logic.EntryBuilder;
 import com.momo.decogen.logic.History;
 import com.momo.decogen.logic.TextureMatcher;
 import com.momo.decogen.model.DecoEntry;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -24,6 +25,7 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.io.File;
@@ -579,7 +581,10 @@ public class AppController {
         content.setPadding(new Insets(10));
 
         Dialog<ButtonType> dialog = new Dialog<>();
-        if (primaryStage != null) dialog.initOwner(primaryStage);
+        if (primaryStage != null) {
+            dialog.initOwner(primaryStage);
+            dialog.initModality(Modality.WINDOW_MODAL);
+        }
         dialog.setTitle("Link Pairs");
         dialog.setHeaderText("Link base \u2194 variant entries via on_use.");
         dialog.getDialogPane().setContent(content);
@@ -587,7 +592,7 @@ public class AppController {
         ButtonType applyBtn = new ButtonType("Apply", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(applyBtn, ButtonType.CANCEL);
 
-        Optional<ButtonType> result = dialog.showAndWait();
+        Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
         if (result.isEmpty() || result.get() != applyBtn) return;
 
         String suffix = suffixCombo.getValue();
@@ -655,7 +660,10 @@ public class AppController {
         content.setPadding(new Insets(10));
 
         Dialog<ButtonType> dialog = new Dialog<>();
-        if (primaryStage != null) dialog.initOwner(primaryStage);
+        if (primaryStage != null) {
+            dialog.initOwner(primaryStage);
+            dialog.initModality(Modality.WINDOW_MODAL);
+        }
         dialog.setTitle("Normalize");
         dialog.setHeaderText("Pick a word and the fields to strip it from.");
         dialog.getDialogPane().setContent(content);
@@ -663,7 +671,7 @@ public class AppController {
         ButtonType applyBtn = new ButtonType("Apply", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(applyBtn, ButtonType.CANCEL);
 
-        Optional<ButtonType> result = dialog.showAndWait();
+        Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
         if (result.isEmpty() || result.get() != applyBtn) return;
 
         String word = wordCombo.getValue();
@@ -768,7 +776,10 @@ public class AppController {
         content.setPadding(new Insets(10));
 
         Dialog<ButtonType> dialog = new Dialog<>();
-        if (primaryStage != null) dialog.initOwner(primaryStage);
+        if (primaryStage != null) {
+            dialog.initOwner(primaryStage);
+            dialog.initModality(Modality.WINDOW_MODAL);
+        }
         dialog.setTitle("Add Word");
         dialog.setHeaderText("Pick a word and where to insert it in every entry.");
         dialog.getDialogPane().setContent(content);
@@ -776,7 +787,7 @@ public class AppController {
         ButtonType applyBtn = new ButtonType("Apply", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(applyBtn, ButtonType.CANCEL);
 
-        Optional<ButtonType> result = dialog.showAndWait();
+        Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
         if (result.isEmpty() || result.get() != applyBtn) return;
 
         String rawWord = wordField.getText();
@@ -911,7 +922,7 @@ public class AppController {
         fileChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("JSON Files", "*.json"));
 
-        File file = fileChooser.showSaveDialog(stage);
+        File file = runPreservingStage(() -> fileChooser.showSaveDialog(stage));
         if (file != null) {
             try {
                 JsonExporter.export(new ArrayList<>(entries), file.toPath());
@@ -940,8 +951,29 @@ public class AppController {
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
-        if (primaryStage != null) alert.initOwner(primaryStage);
-        alert.showAndWait();
+        if (primaryStage != null) {
+            alert.initOwner(primaryStage);
+            alert.initModality(Modality.WINDOW_MODAL);
+        }
+        runPreservingStage(alert::showAndWait);
+    }
+
+    // Some Linux window managers (GNOME/mutter) drop the owner stage out of
+    // maximized/fullscreen state when a modal or native file chooser opens.
+    // Capture the state before, restore it on the FX thread after the popup
+    // returns. No-op on Windows/macOS where setMaximized(true) on an already-
+    // maximized stage is idempotent.
+    private <T> T runPreservingStage(java.util.function.Supplier<T> popup) {
+        boolean wasMaximized = primaryStage != null && primaryStage.isMaximized();
+        boolean wasFullScreen = primaryStage != null && primaryStage.isFullScreen();
+        T result = popup.get();
+        if (primaryStage != null && (wasMaximized || wasFullScreen)) {
+            Platform.runLater(() -> {
+                if (wasFullScreen && !primaryStage.isFullScreen()) primaryStage.setFullScreen(true);
+                if (wasMaximized && !primaryStage.isMaximized()) primaryStage.setMaximized(true);
+            });
+        }
+        return result;
     }
 
     // --- Updates ---
