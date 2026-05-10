@@ -1,8 +1,15 @@
 package com.momo.decogen.update;
 
 import javafx.application.Platform;
+import javafx.beans.property.SimpleDoubleProperty;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -10,12 +17,18 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Checks GitHub releases for updates and notifies the user.
+ * Checks GitHub releases for updates and (on jpackage builds) performs a
+ * guided self-update: downloads the OS-specific asset, extracts it, and
+ * relaunches the app via a small swap script. Falls back to opening the
+ * releases page when self-update isn't possible.
  */
 public class UpdateChecker {
 
@@ -24,7 +37,7 @@ public class UpdateChecker {
     private static final String RELEASES_API = "https://api.github.com/repos/%s/%s/releases/latest";
     private static final String RELEASES_PAGE = "https://github.com/%s/%s/releases/latest";
 
-    private static final String CURRENT_VERSION = "1.2.6";
+    private static final String CURRENT_VERSION = "1.2.7";
 
     public static void checkForUpdatesAsync() {
         checkForUpdatesAsync(null);
@@ -33,10 +46,12 @@ public class UpdateChecker {
     public static void checkForUpdatesAsync(Stage owner) {
         Thread updateThread = new Thread(() -> {
             try {
-                String latestVersion = fetchLatestVersion();
-                if (latestVersion != null && isNewerVersion(latestVersion, CURRENT_VERSION)) {
-                    Platform.runLater(() -> showUpdateDialog(latestVersion, owner));
-                }
+                String body = fetchLatestReleaseJson();
+                if (body == null) return;
+                String latestVersion = parseTagName(body);
+                if (latestVersion == null || !isNewerVersion(latestVersion, CURRENT_VERSION)) return;
+                Map<String, String> assets = parseAssets(body);
+                Platform.runLater(() -> showUpdateDialog(latestVersion, assets, owner));
             } catch (Exception e) {
                 System.out.println("Update check failed: " + e.getMessage());
             }
@@ -45,7 +60,7 @@ public class UpdateChecker {
         updateThread.start();
     }
 
-    private static String fetchLatestVersion() throws Exception {
+    private static String fetchLatestReleaseJson() throws Exception {
         String apiUrl = String.format(RELEASES_API, GITHUB_OWNER, GITHUB_REPO);
         URL url = new URL(apiUrl);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -54,22 +69,39 @@ public class UpdateChecker {
         conn.setConnectTimeout(5000);
         conn.setReadTimeout(5000);
 
-        if (conn.getResponseCode() != 200) {
-            return null;
-        }
+        if (conn.getResponseCode() != 200) return null;
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-        StringBuilder response = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            response.append(line);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) sb.append(line);
+            return sb.toString();
         }
-        reader.close();
+    }
 
-        Pattern pattern = Pattern.compile("\"tag_name\"\\s*:\\s*\"v?([^\"]+)\"");
-        Matcher matcher = pattern.matcher(response.toString());
-        if (matcher.find()) {
-            return matcher.group(1);
+    private static String parseTagName(String json) {
+        Matcher m = Pattern.compile("\"tag_name\"\\s*:\\s*\"v?([^\"]+)\"").matcher(json);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static Map<String, String> parseAssets(String json) {
+        Map<String, String> assets = new LinkedHashMap<>();
+        Matcher m = Pattern.compile(
+                "\"name\"\\s*:\\s*\"([^\"]+)\"[\\s\\S]*?\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"")
+                .matcher(json);
+        while (m.find()) {
+            assets.put(m.group(1), m.group(2));
+        }
+        return assets;
+    }
+
+    private static String pickAssetForOs(Map<String, String> assets) {
+        boolean win = Updater.isWindows();
+        boolean linux = Updater.isLinux();
+        for (Map.Entry<String, String> e : assets.entrySet()) {
+            String n = e.getKey().toLowerCase();
+            if (win && n.endsWith(".zip") && n.contains("windows")) return e.getValue();
+            if (linux && (n.endsWith(".tar.gz") || n.endsWith(".tgz")) && n.contains("linux")) return e.getValue();
         }
         return null;
     }
@@ -83,11 +115,8 @@ public class UpdateChecker {
             int latestPart = i < latestParts.length ? parseVersionPart(latestParts[i]) : 0;
             int currentPart = i < currentParts.length ? parseVersionPart(currentParts[i]) : 0;
 
-            if (latestPart > currentPart) {
-                return true;
-            } else if (latestPart < currentPart) {
-                return false;
-            }
+            if (latestPart > currentPart) return true;
+            else if (latestPart < currentPart) return false;
         }
         return false;
     }
@@ -100,22 +129,33 @@ public class UpdateChecker {
         }
     }
 
-    private static void showUpdateDialog(String newVersion, Stage owner) {
+    private static void showUpdateDialog(String newVersion, Map<String, String> assets, Stage owner) {
+        String assetUrl = pickAssetForOs(assets);
+        boolean canSelfUpdate = assetUrl != null && Updater.canSelfUpdate();
+
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Update Available");
         alert.setHeaderText("A new version is available!");
         alert.setContentText(String.format(
-            "Current version: %s\nNew version: %s\n\nWould you like to download the update?",
-            CURRENT_VERSION, newVersion
+                "Current version: %s%nNew version: %s%n%n%s",
+                CURRENT_VERSION, newVersion,
+                canSelfUpdate
+                        ? "Install the update now? The app will close and relaunch."
+                        : "Open the releases page to download manually?"
         ));
         if (owner != null) {
             alert.initOwner(owner);
             alert.initModality(Modality.WINDOW_MODAL);
         }
 
-        ButtonType downloadBtn = new ButtonType("Download");
+        ButtonType updateNowBtn = new ButtonType("Update Now");
+        ButtonType openPageBtn = new ButtonType("Open Page");
         ButtonType laterBtn = new ButtonType("Later");
-        alert.getButtonTypes().setAll(downloadBtn, laterBtn);
+        if (canSelfUpdate) {
+            alert.getButtonTypes().setAll(updateNowBtn, openPageBtn, laterBtn);
+        } else {
+            alert.getButtonTypes().setAll(openPageBtn, laterBtn);
+        }
 
         boolean wasMaximized = owner != null && owner.isMaximized();
         boolean wasFullScreen = owner != null && owner.isFullScreen();
@@ -126,9 +166,89 @@ public class UpdateChecker {
                 if (wasMaximized && !owner.isMaximized()) owner.setMaximized(true);
             });
         }
-        if (result.isPresent() && result.get() == downloadBtn) {
+        if (result.isEmpty()) return;
+        ButtonType chosen = result.get();
+        if (chosen == updateNowBtn && canSelfUpdate) {
+            runSelfUpdate(assetUrl, newVersion, owner);
+        } else if (chosen == openPageBtn) {
             openReleasesPage();
         }
+    }
+
+    private static void runSelfUpdate(String assetUrl, String newVersion, Stage owner) {
+        Stage progressStage = new Stage();
+        progressStage.setTitle("Updating to v" + newVersion);
+        if (owner != null) {
+            progressStage.initOwner(owner);
+            progressStage.initModality(Modality.WINDOW_MODAL);
+        }
+        Label status = new Label("Downloading…");
+        ProgressBar bar = new ProgressBar(0);
+        bar.setPrefWidth(360);
+        SimpleDoubleProperty progress = new SimpleDoubleProperty(0);
+        bar.progressProperty().bind(progress);
+        Button cancel = new Button("Cancel");
+        VBox box = new VBox(10, status, bar, cancel);
+        box.setPadding(new Insets(16));
+        progressStage.setScene(new Scene(box));
+        progressStage.setResizable(false);
+
+        final boolean[] cancelled = {false};
+        cancel.setOnAction(e -> {
+            cancelled[0] = true;
+            progressStage.close();
+        });
+
+        Thread t = new Thread(() -> {
+            try {
+                Path archive = Updater.downloadAsset(assetUrl, (read, total) -> {
+                    if (cancelled[0]) throw new RuntimeException("cancelled");
+                    if (total > 0) {
+                        double p = (double) read / (double) total;
+                        Platform.runLater(() -> progress.set(p));
+                    }
+                });
+                if (cancelled[0]) return;
+                Platform.runLater(() -> {
+                    status.setText("Extracting…");
+                    progress.unbind();
+                    bar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+                });
+                Path extracted = Updater.extractArchive(archive);
+                Path payload = Updater.findPayloadRoot(extracted);
+                Path installRoot = Updater.getInstallRoot();
+                long pid = Updater.currentPid();
+                Updater.launchRelaunchScript(pid, payload, installRoot);
+                Platform.runLater(() -> {
+                    progressStage.close();
+                    Platform.exit();
+                    System.exit(0);
+                });
+            } catch (Exception ex) {
+                if (cancelled[0]) return;
+                System.out.println("Self-update failed: " + ex.getMessage());
+                Platform.runLater(() -> {
+                    progressStage.close();
+                    Alert err = new Alert(Alert.AlertType.ERROR);
+                    if (owner != null) {
+                        err.initOwner(owner);
+                        err.initModality(Modality.WINDOW_MODAL);
+                    }
+                    err.setTitle("Update Failed");
+                    err.setHeaderText("Could not install the update");
+                    err.setContentText(ex.getMessage() + "\n\nOpen the releases page to download manually?");
+                    ButtonType openBtn = new ButtonType("Open Page");
+                    ButtonType closeBtn = new ButtonType("Close", ButtonType.CANCEL.getButtonData());
+                    err.getButtonTypes().setAll(openBtn, closeBtn);
+                    Optional<ButtonType> r = err.showAndWait();
+                    if (r.isPresent() && r.get() == openBtn) openReleasesPage();
+                });
+            }
+        }, "decogen-self-updater");
+        t.setDaemon(true);
+
+        progressStage.show();
+        t.start();
     }
 
     private static void openReleasesPage() {
