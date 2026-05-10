@@ -184,6 +184,18 @@ public class AppController {
 
         List<String> resolved = resolveModelsForTexture(textureName);
         if (resolved.isEmpty()) {
+            // No model matched by prefix — but an orphan icon entry (created
+            // earlier when an icon was dropped before its texture) may be
+            // waiting on this texture's color suffix. Pair them up so e.g. a
+            // school_desk_red icon entry gets school_set_red as its material.
+            DecoEntry waiting = findEmptyIconEntryForLooseTexture(textureName);
+            if (waiting != null) {
+                waiting.setMaterial(textureName);
+                System.out.println("Bound loose texture to icon entry: "
+                        + textureName + " -> " + waiting.getDecoref());
+                refreshEntryList();
+                return;
+            }
             unmatchedTextures.add(textureName);
             if (unmatchedListView != null) {
                 unmatchedListView.getItems().setAll(unmatchedTextures);
@@ -282,6 +294,38 @@ public class AppController {
     }
 
     /**
+     * Find an icon-driven entry (material null, decoref set, has a model)
+     * whose decoref ends with the texture's color suffix. Used when a texture
+     * has no model-prefix match — covers school_desk-style cases where the
+     * material naming (school_set_red) and decoref naming (school_desk_red)
+     * diverge but share a color suffix. Prefers the longest-matching decoref
+     * suffix to disambiguate red vs dark_red.
+     */
+    private DecoEntry findEmptyIconEntryForLooseTexture(String textureName) {
+        String suffix = TextureMatcher.extractColorSuffix(textureName);
+        if (suffix == null || suffix.isEmpty()) return null;
+        String suffixLower = "_" + suffix.toLowerCase();
+
+        DecoEntry best = null;
+        int bestLen = -1;
+        for (DecoEntry e : entries) {
+            if (e.getMaterial() != null) continue;
+            if (e.getDecoref() == null) continue;
+            if (e.getModel() == null) continue;
+            String decorefLower = e.getDecoref().toLowerCase();
+            if (!decorefLower.endsWith(suffixLower)) continue;
+            // Prefer the longest decoref so that a textureNamed *_red
+            // assigns to school_desk_dark_red over school_desk_red when both
+            // are waiting (unlikely, but deterministic).
+            if (decorefLower.length() > bestLen) {
+                best = e;
+                bestLen = decorefLower.length();
+            }
+        }
+        return best;
+    }
+
+    /**
      * Given an icon name "model_suffix", find an unmatched texture whose name
      * ends with that suffix (so it can become the icon entry's material).
      */
@@ -376,11 +420,15 @@ public class AppController {
     // --- Auto-match / pair ---
 
     public void autoMatchTextures() {
+        if (modelFiles.isEmpty()) {
+            showAlert("No Models Loaded",
+                    "Drop a .bbmodel into the Models zone first. Auto-match needs a model to pair textures and icons against.");
+            return;
+        }
         snapshot();
-        // For each unmatched texture, ensure an entry exists for every model
-        // it resolves to — the primary (longest-prefix) model plus any
-        // state-variant sibling models. "locker_yellow" therefore populates
-        // both "locker" and "locker_open" when both models are loaded.
+        int prefixMatched = 0;
+        // Pass 1: prefix-based matching (existing behavior). "locker_yellow"
+        // matches model "locker" and populates state-variant siblings too.
         for (String textureName : new ArrayList<>(unmatchedTextures)) {
             List<String> resolved = resolveModelsForTexture(textureName);
             if (resolved.isEmpty()) continue;
@@ -391,9 +439,95 @@ public class AppController {
                 System.out.println("Created entry for texture: " + textureName + " -> " + modelName);
             }
             unmatchedTextures.remove(textureName);
+            prefixMatched++;
         }
 
+        // Pass 2: fan-out remaining unmatched textures over a single
+        // placeholder entry. Covers cases like wall_flag_1 + 250 country
+        // textures where the texture names share no prefix with the model.
+        List<DecoEntry> placeholders = new ArrayList<>();
+        for (DecoEntry e : entries) {
+            if (e.getMaterial() == null && e.getModel() != null && e.getDecoref() != null) {
+                placeholders.add(e);
+            }
+        }
+        int fannedOut = 0;
+        if (!unmatchedTextures.isEmpty() && placeholders.size() == 1) {
+            DecoEntry template = placeholders.get(0);
+            String modelName = template.getModel();
+            List<DecoEntry> newEntries = new ArrayList<>();
+            for (String textureName : new ArrayList<>(unmatchedTextures)) {
+                String suffix = TextureMatcher.extractColorSuffix(textureName);
+                String iconName = TextureMatcher.findMatchingIcon(modelName, suffix, textureFiles.keySet());
+                DecoEntry entry = History.deepCopy(template, DecoEntry.class);
+                String displayName = EntryBuilder.toDisplayName(modelName + "_" + suffix);
+                String decoref = (iconName != null) ? iconName : (modelName + "_" + suffix);
+                entry.setDecoref(decoref);
+                entry.setName(displayName);
+                entry.setModel(modelName);
+                entry.setMaterial(textureName);
+                newEntries.add(entry);
+                unmatchedTextures.remove(textureName);
+                fannedOut++;
+            }
+            entries.remove(template);
+            entries.addAll(newEntries);
+            System.out.println("Fanned " + fannedOut + " textures across placeholder for model " + modelName);
+        }
+
+        if (unmatchedListView != null) {
+            unmatchedListView.getItems().setAll(unmatchedTextures);
+        }
         refreshEntryList();
+        updateIconListView();
+
+        // Feedback when Auto-Match couldn't do anything visible.
+        if (prefixMatched == 0 && fannedOut == 0) {
+            if (placeholders.size() > 1 && !unmatchedTextures.isEmpty()) {
+                showAlert("Multiple Placeholders",
+                        unmatchedTextures.size() + " textures still unmatched. With more than one placeholder entry, Auto-Match can't pick a target safely — use Pair Selected to fan textures across the entries you choose.");
+            } else if (!unmatchedTextures.isEmpty()) {
+                showAlert("Nothing to Match",
+                        unmatchedTextures.size() + " textures have no model-prefix match and no placeholder entry to fan them out to. Drop a matching model, or use Pair Selected for manual pairing.");
+            } else {
+                showAlert("Nothing to Match",
+                        "No unmatched textures to process.");
+            }
+        }
+    }
+
+    // --- Sort ---
+
+    public void sortEntriesByDecoref(boolean ascending) {
+        sortEntriesBy(java.util.Comparator
+                .comparing((DecoEntry e) -> nullSafe(e.getDecoref()), String.CASE_INSENSITIVE_ORDER),
+                ascending);
+    }
+
+    public void sortEntriesByName(boolean ascending) {
+        sortEntriesBy(java.util.Comparator
+                .comparing((DecoEntry e) -> nullSafe(e.getName()), String.CASE_INSENSITIVE_ORDER),
+                ascending);
+    }
+
+    public void sortEntriesByModelThenDecoref() {
+        java.util.Comparator<DecoEntry> cmp = java.util.Comparator
+                .comparing((DecoEntry e) -> nullSafe(e.getModel()), String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(e -> nullSafe(e.getDecoref()), String.CASE_INSENSITIVE_ORDER);
+        sortEntriesBy(cmp, true);
+    }
+
+    private void sortEntriesBy(java.util.Comparator<DecoEntry> cmp, boolean ascending) {
+        if (entries.isEmpty()) return;
+        snapshot();
+        List<DecoEntry> sorted = new ArrayList<>(entries);
+        sorted.sort(ascending ? cmp : cmp.reversed());
+        entries.setAll(sorted);
+        refreshEntryList();
+    }
+
+    private static String nullSafe(String s) {
+        return s == null ? "" : s;
     }
 
     public void pairSelectedTexturesWithModel() {

@@ -7,6 +7,8 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -57,6 +59,20 @@ public class TopBar {
         addWordBtn.setStyle("-fx-background-color: #6c757d; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
         addWordBtn.setOnAction(e -> controller.normalizeAddWord());
         addWordBtn.setTooltip(tooltip("Insert a word at a chosen position in every entry's name, decoref, and/or material"));
+
+        MenuButton sortBtn = new MenuButton("Sort\u2026");
+        sortBtn.setPrefHeight(35);
+        sortBtn.setStyle("-fx-background-color: #6c757d; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
+        sortBtn.setTooltip(tooltip("Reorder entries in the list. Choose a sort key."));
+        MenuItem sortDecorefAsc = new MenuItem("Decoref (A\u2192Z)");
+        sortDecorefAsc.setOnAction(e -> controller.sortEntriesByDecoref(true));
+        MenuItem sortDecorefDesc = new MenuItem("Decoref (Z\u2192A)");
+        sortDecorefDesc.setOnAction(e -> controller.sortEntriesByDecoref(false));
+        MenuItem sortNameAsc = new MenuItem("Name (A\u2192Z)");
+        sortNameAsc.setOnAction(e -> controller.sortEntriesByName(true));
+        MenuItem sortModelThenDecoref = new MenuItem("Model, then Decoref");
+        sortModelThenDecoref.setOnAction(e -> controller.sortEntriesByModelThenDecoref());
+        sortBtn.getItems().addAll(sortDecorefAsc, sortDecorefDesc, sortNameAsc, sortModelThenDecoref);
 
         // Rainbow button: OKLab-ish 12-stop gradient + stroked Text so the
         // letters stay legible against every band of the spectrum. The dual
@@ -157,7 +173,7 @@ public class TopBar {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        root.getChildren().addAll(exportBtn, autoMatchBtn, normalizeBtn, addWordBtn, rainbowChainBtn, woodChainBtn, orderLinkBtn, linkPairsBtn, resetBtn, spacer, statsLabel);
+        root.getChildren().addAll(exportBtn, autoMatchBtn, sortBtn, normalizeBtn, addWordBtn, rainbowChainBtn, woodChainBtn, orderLinkBtn, linkPairsBtn, resetBtn, spacer, statsLabel);
     }
 
     public HBox getRoot() {
