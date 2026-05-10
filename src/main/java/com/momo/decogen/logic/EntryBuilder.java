@@ -8,7 +8,11 @@ import com.momo.decogen.model.DecoEntry;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class EntryBuilder {
 
@@ -23,15 +27,28 @@ public class EntryBuilder {
                 .map(DirectoryScanner::getStem)
                 .toList();
 
+        Set<String> modelNames = new HashSet<>();
+        for (Path modelFile : modelFiles) {
+            modelNames.add(DirectoryScanner.getStem(modelFile));
+        }
+
+        // Each texture goes to its single longest-prefix model. Requires a
+        // "_"/"-" separator (or exact match), so "island" no longer claims
+        // "islands_red" and "north" no longer claims "north_korea_red".
+        Map<String, List<String>> texturesByModel = new HashMap<>();
+        for (String tex : textureStems) {
+            String best = TextureMatcher.findMatchingModel(tex, modelNames);
+            if (best == null) continue;
+            texturesByModel.computeIfAbsent(best, k -> new ArrayList<>()).add(tex);
+        }
+
         for (Path modelFile : modelFiles) {
             String modelName = DirectoryScanner.getStem(modelFile);
             String tab = DirectoryScanner.getTabFromPath(modelFile, modelsRoot);
 
             BBModel model = BBModelParser.parse(modelFile);
 
-            List<String> matches = textureStems.stream()
-                    .filter(t -> t.toLowerCase().startsWith(modelName.toLowerCase()))
-                    .toList();
+            List<String> matches = texturesByModel.getOrDefault(modelName, List.of());
 
             if (matches.isEmpty()) {
                 DecoEntry entry = new DecoEntry();

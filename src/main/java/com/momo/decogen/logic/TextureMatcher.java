@@ -155,14 +155,11 @@ public class TextureMatcher {
             }
         }
 
-        String[] parts = textureName.split("_");
-        if (parts.length >= 2) {
-            if (parts.length >= 3) {
-                return parts[parts.length - 2] + "_" + parts[parts.length - 1];
-            }
-            return parts[parts.length - 1];
-        }
-
+        // No known color/wood suffix — use the full texture name so each
+        // texture produces a unique decoref. Trimming to the trailing
+        // segment(s) collapses unrelated names: e.g. north_korea/south_korea
+        // would both become "korea", and every *_islands country flag would
+        // collide on "islands".
         return textureName;
     }
 }

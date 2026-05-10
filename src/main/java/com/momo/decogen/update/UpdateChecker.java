@@ -24,7 +24,7 @@ public class UpdateChecker {
     private static final String RELEASES_API = "https://api.github.com/repos/%s/%s/releases/latest";
     private static final String RELEASES_PAGE = "https://github.com/%s/%s/releases/latest";
 
-    private static final String CURRENT_VERSION = "1.2.5";
+    private static final String CURRENT_VERSION = "1.2.6";
 
     public static void checkForUpdatesAsync() {
         checkForUpdatesAsync(null);
