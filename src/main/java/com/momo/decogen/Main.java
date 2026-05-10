@@ -76,11 +76,16 @@ public class Main extends Application {
         stage.setScene(scene);
 
         try {
-            File iconFile = new File("src/main/java/com/momo/resources/generator_icon.png");
-            if (iconFile.exists()) {
-                stage.getIcons().add(new javafx.scene.image.Image(iconFile.toURI().toString()));
+            java.io.InputStream iconStream = Main.class.getResourceAsStream("/com/momo/resources/generator_icon.png");
+            if (iconStream != null) {
+                stage.getIcons().add(new javafx.scene.image.Image(iconStream));
             } else {
-                System.out.println("App icon not found at: " + iconFile.getAbsolutePath());
+                File iconFile = new File("src/main/java/com/momo/resources/generator_icon.png");
+                if (iconFile.exists()) {
+                    stage.getIcons().add(new javafx.scene.image.Image(iconFile.toURI().toString()));
+                } else {
+                    System.out.println("App icon not found on classpath or at: " + iconFile.getAbsolutePath());
+                }
             }
         } catch (Exception e) {
             System.out.println("Could not load app icon: " + e.getMessage());

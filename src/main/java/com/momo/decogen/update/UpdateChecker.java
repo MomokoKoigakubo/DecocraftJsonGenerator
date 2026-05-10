@@ -37,7 +37,7 @@ public class UpdateChecker {
     private static final String RELEASES_API = "https://api.github.com/repos/%s/%s/releases/latest";
     private static final String RELEASES_PAGE = "https://github.com/%s/%s/releases/latest";
 
-    private static final String CURRENT_VERSION = "1.2.7";
+    private static final String CURRENT_VERSION = "1.2.8";
 
     public static void checkForUpdatesAsync() {
         checkForUpdatesAsync(null);
@@ -211,7 +211,7 @@ public class UpdateChecker {
                 if (cancelled[0]) return;
                 Platform.runLater(() -> {
                     status.setText("Extracting…");
-                    progress.unbind();
+                    bar.progressProperty().unbind();
                     bar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
                 });
                 Path extracted = Updater.extractArchive(archive);

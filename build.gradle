@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.momo'
-version = '1.2.7'
+version = '1.2.8'
 
 repositories {
     mavenCentral()
@@ -22,6 +22,12 @@ javafx {
 
 application {
     mainClass = 'com.momo.decogen.Main'
+}
+
+processResources {
+    from('src/main/java') {
+        include '**/*.png'
+    }
 }
 
 run {
@@ -92,7 +98,8 @@ tasks.register('packageLinux', Exec) {
         '--input', "${buildDir}/jpackage-input",
         '--main-jar', jar.archiveFileName.get(),
         '--main-class', 'com.momo.decogen.Launcher',
-        '--dest', "${buildDir}/package"
+        '--dest', "${buildDir}/package",
+        '--add-modules', 'jdk.crypto.ec'
 }
 
 // Windows: Create exe installer
@@ -120,6 +127,7 @@ tasks.register('packageWindows', Exec) {
         '--main-jar', jar.archiveFileName.get(),
         '--main-class', 'com.momo.decogen.Launcher',
         '--dest', "${buildDir}/installer",
+        '--add-modules', 'jdk.crypto.ec',
         '--win-dir-chooser',
         '--win-menu',
         '--win-shortcut'

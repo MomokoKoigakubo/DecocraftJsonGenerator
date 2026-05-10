@@ -10,10 +10,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Locale;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 /**
  * Self-update helpers: locate the jpackage install root, download a release
@@ -98,41 +95,30 @@ public final class Updater {
     public static Path extractArchive(Path archive) throws IOException {
         Path dest = Files.createTempDirectory("decogen-update-extract-");
         String name = archive.getFileName().toString().toLowerCase(Locale.ROOT);
-        if (name.endsWith(".zip")) {
-            extractZip(archive, dest);
-        } else if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) {
-            extractTarGz(archive, dest);
+        if (name.endsWith(".tar.gz") || name.endsWith(".tgz") || name.endsWith(".zip")) {
+            // bsdtar (system "tar") on Windows 10+, macOS, and Linux handles
+            // both .zip and .tar.gz, and tolerates the duplicate dir/file
+            // entries Compress-Archive sometimes emits for jlink's legal/ tree.
+            runTar(archive, dest);
         } else {
             throw new IOException("Unsupported archive: " + name);
         }
         return dest;
     }
 
-    private static void extractZip(Path zip, Path dest) throws IOException {
-        try (ZipInputStream zin = new ZipInputStream(Files.newInputStream(zip))) {
-            ZipEntry entry;
-            while ((entry = zin.getNextEntry()) != null) {
-                Path out = dest.resolve(entry.getName()).normalize();
-                if (!out.startsWith(dest)) throw new IOException("Bad zip entry: " + entry.getName());
-                if (entry.isDirectory()) {
-                    Files.createDirectories(out);
-                } else {
-                    Files.createDirectories(out.getParent());
-                    Files.copy(zin, out, StandardCopyOption.REPLACE_EXISTING);
-                }
-            }
-        }
-    }
-
-    private static void extractTarGz(Path tarGz, Path dest) throws IOException {
-        // Use system tar (always present on Linux) to avoid adding a dep.
-        ProcessBuilder pb = new ProcessBuilder("tar", "-xzf", tarGz.toAbsolutePath().toString(),
+    private static void runTar(Path archive, Path dest) throws IOException {
+        ProcessBuilder pb = new ProcessBuilder("tar", "-xf", archive.toAbsolutePath().toString(),
                 "-C", dest.toAbsolutePath().toString());
         pb.redirectErrorStream(true);
         Process p = pb.start();
+        StringBuilder out = new StringBuilder();
+        try (var r = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))) {
+            String line;
+            while ((line = r.readLine()) != null) out.append(line).append('\n');
+        }
         try {
             int code = p.waitFor();
-            if (code != 0) throw new IOException("tar exited " + code);
+            if (code != 0) throw new IOException("tar exited " + code + ": " + out);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("tar interrupted", e);
@@ -169,21 +155,37 @@ public final class Updater {
         Path log = Files.createTempFile("decogen-update-", ".log");
         Path launcher = installRoot.resolve("DecocraftJsonGenerator.exe");
 
+        // robocopy /R:20 /W:1 retries each locked file 20× with 1s delay to
+        // cover the brief window after the JVM exits where Windows hasn't
+        // released DLL/native handles yet. robocopy exit codes 0-7 are success;
+        // 8+ means at least one file failed.
         String content = "@echo off\r\n"
                 + "setlocal\r\n"
+                + "echo [%TIME%] script started, waiting for PID " + pid + " >> \"" + log + "\"\r\n"
                 + ":wait\r\n"
                 + "tasklist /FI \"PID eq " + pid + "\" 2>NUL | find \"" + pid + "\" >NUL\r\n"
                 + "if not errorlevel 1 (timeout /t 1 /nobreak >NUL & goto wait)\r\n"
-                + "xcopy /E /Y /I /Q \"" + payloadRoot + "\\*\" \"" + installRoot + "\\\" >> \"" + log + "\" 2>&1\r\n"
-                + "if errorlevel 1 (echo xcopy failed >> \"" + log + "\" & exit /b 1)\r\n"
+                + "echo [%TIME%] PID gone, settling 2s >> \"" + log + "\"\r\n"
+                + "timeout /t 2 /nobreak >NUL\r\n"
+                + "echo [%TIME%] running robocopy >> \"" + log + "\"\r\n"
+                + "robocopy \"" + payloadRoot + "\" \"" + installRoot + "\" /E /COPY:DAT /R:20 /W:1 /NP >> \"" + log + "\" 2>&1\r\n"
+                + "set RC=%ERRORLEVEL%\r\n"
+                + "echo [%TIME%] robocopy errorlevel=%RC% >> \"" + log + "\"\r\n"
+                + "if %RC% GEQ 8 (echo [%TIME%] ABORT robocopy failed >> \"" + log + "\" & exit /b 1)\r\n"
+                + "echo [%TIME%] launching " + launcher + " >> \"" + log + "\"\r\n"
                 + "start \"\" \"" + launcher + "\"\r\n"
-                + "rmdir /S /Q \"" + payloadRoot.getParent() + "\" 2>NUL\r\n";
+                + "echo [%TIME%] cleanup >> \"" + log + "\"\r\n"
+                + "rmdir /S /Q \"" + payloadRoot.getParent() + "\" 2>NUL\r\n"
+                + "echo [%TIME%] done >> \"" + log + "\"\r\n";
         Files.writeString(script, content);
 
+        // Detach: do NOT redirectOutput to the log (would conflict with the
+        // script's >> appends and can block the file). The script handles all
+        // its own logging.
         ProcessBuilder pb = new ProcessBuilder("cmd.exe", "/c", "start", "\"updater\"", "/MIN",
                 script.toAbsolutePath().toString());
         pb.redirectErrorStream(true);
-        pb.redirectOutput(log.toFile());
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
         pb.start();
     }
 

@@ -48,7 +48,7 @@ jobs:
           --main-jar "$JAR_NAME" \
           --main-class com.momo.decogen.Launcher \
           --dest build/package \
-          --add-modules javafx.controls,javafx.fxml \
+          --add-modules javafx.controls,javafx.fxml,jdk.crypto.ec \
           --java-options '-Xmx512m'
 
     - name: Create tar.gz archive
@@ -90,7 +90,7 @@ jobs:
         mkdir build\jpackage-input -Force
         $jarFile = Get-ChildItem build\libs\DecocraftJsonGenerator-clean-*.jar | Select-Object -First 1
         Copy-Item $jarFile.FullName build\jpackage-input\
-        jpackage --type app-image --name DecocraftJsonGenerator --app-version ${{ steps.get_version.outputs.VERSION }} --vendor "Momo" --input build\jpackage-input --main-jar $jarFile.Name --main-class com.momo.decogen.Launcher --dest build\package --add-modules javafx.controls,javafx.fxml --java-options "-Xmx512m"
+        jpackage --type app-image --name DecocraftJsonGenerator --app-version ${{ steps.get_version.outputs.VERSION }} --vendor "Momo" --input build\jpackage-input --main-jar $jarFile.Name --main-class com.momo.decogen.Launcher --dest build\package --add-modules javafx.controls,javafx.fxml,jdk.crypto.ec --java-options "-Xmx512m"
 
     - name: Create zip archive
       shell: powershell
