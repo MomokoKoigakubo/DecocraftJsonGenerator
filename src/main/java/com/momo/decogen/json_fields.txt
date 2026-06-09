@@ -46,29 +46,29 @@ Entry - block type & behavior
     chain         - chain/vine connector (uses chain_models, no model field)
 
 
-Entry - crafting color (last flat field before nested/array/script groups)
- 18. crafting_color    - RGB color for crafting bench preview (auto generated)
-
-
 Entry - composite / flipbook
- 19. composite         - second model attached as a child (e.g. record on a jukebox)
- 20. flipbook          - animated texture, flip between frames
+ 18. composite         - second model attached as a child (e.g. record on a jukebox)
+ 19. flipbook          - animated texture, flip between frames
 
 
 Entry - chain
- 21. chain_models      - bbmodels used for chain segments
- 22. chain_materials   - per-segment texture overrides
- 23. chain_pattern     - "mirror" reflects back and forth, "repeat" cycles
- 24. lighting          - light level emitted along the chain (0-15)
+ 20. chain_models      - bbmodels used for chain segments
+ 21. chain_materials   - per-segment texture overrides
+ 22. chain_pattern     - "mirror" reflects back and forth, "repeat" cycles
+ 23. lighting          - light level emitted along the chain (0-15)
 
 
 Entry - growable
- 25. structures        - structure files the sapling can grow into (random pick)
- 26. instant           - grow immediately instead of over time
+ 24. structures        - structure files the sapling can grow into (random pick)
+ 25. instant           - grow immediately instead of over time
 
 
 Entry - scripting
- 27. script            - container for all interactive behavior (see script section)
+ 26. script            - container for all interactive behavior (see script section)
+
+
+Entry - crafting color (emitted LAST, after all nested/array/script groups)
+ 27. crafting_color    - RGB color for crafting bench preview (auto generated)
 
 
 composite (nested inside Entry.composite)

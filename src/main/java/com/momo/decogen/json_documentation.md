@@ -1,4 +1,4 @@
-Decocraft JSON Entry Documentation
+﻿Decocraft JSON Entry Documentation
 
 This documents every field available in the decocraft JSON config system.
 All blocks, items, chains, and decorations are defined through JSON entries
@@ -92,7 +92,7 @@ Every entry lives inside a "models" array in a config JSON file.
     "name"       - Display name shown in game (String)
     "material"   - Unique texture/material identifier (String)
     "decoref"    - Unique block ID, used for registration (String)
-    "tabs"       - Creative tab group name (String), e.g. "clutter", "lighting", "hobby"
+    "tabs"       - Creative tab group name (String), e.g. "clutter", "lighting", "hobbies"
     "crafting_color" - RGB color array for crafting display (float[3])
 
 ## Model and Rendering
@@ -316,7 +316,7 @@ They use type "chain" and do NOT have a model field.
       "type": "chain",
       "material": "rose_vine",
       "decoref": "rose_vine",
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "crafting_color": [34, 120, 50],
       "chain_models": ["rose_vine"]
     }
@@ -343,7 +343,7 @@ The pattern field controls how models repeat for longer chains.
       "type": "chain",
       "material": "wire",
       "decoref": "wire",
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "crafting_color": [50, 50, 50],
       "chain_models": ["wire"]
     }
@@ -357,7 +357,7 @@ Chains can have animated textures using flipbook data.
       "type": "chain",
       "material": "wire_lights_test",
       "decoref": "wire_lights_test",
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "crafting_color": [255, 200, 50],
       "chain_models": ["wire", "wire_lights_test", "wire"],
       "flipbook": {
@@ -377,7 +377,7 @@ chain_materials array.
       "type": "chain",
       "material": "vine_green",
       "decoref": "mixed_vine",
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "crafting_color": [40, 150, 40],
       "chain_models": ["vine_segment", "vine_flower", "vine_segment"],
       "chain_materials": ["vine_green", "vine_flower_pink", "vine_green"],
@@ -871,7 +871,7 @@ A block that cycles through animations when right clicked.
       "model": "newtons_cradle",
       "material": "newtons_cradle",
       "scale": 1.0,
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "type": "animated",
       "default_animation": "animation.newtons_cradle.idle",
       "script": {
@@ -957,7 +957,7 @@ A record player block that plays music discs.
       "model": "jukebox",
       "material": "jukebox",
       "scale": 1.0,
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "type": "jukebox",
       "default_animation": "animation.jukebox_idle",
       "script": {
@@ -983,7 +983,7 @@ A jukebox with a separate animated disc model on top.
       "material": "jukebox_deluxe",
       "scale": 1.0,
       "transparency": true,
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "type": "jukebox",
       "default_animation": "animation.jukebox_idle",
       "composite": {
@@ -1144,7 +1144,7 @@ the decobrush tool. Each links to the next in a loop.
       "type": "chain",
       "material": "rose_vine",
       "decoref": "rose_vine",
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "crafting_color": [34, 120, 50],
       "chain_models": ["rose_vine"]
     }
@@ -1159,7 +1159,7 @@ A chain with alternating models, animated texture, and light emission.
       "type": "chain",
       "material": "wire_lights_test",
       "decoref": "wire_lights_test",
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "crafting_color": [255, 200, 50],
       "chain_models": ["wire", "wire_lights_test", "wire"],
       "flipbook": {
@@ -1179,7 +1179,7 @@ A block with an animated screen texture.
       "model": "tv_small",
       "material": "tv_small_static_flipbook",
       "scale": 1.0,
-      "tabs": "hobby",
+      "tabs": "hobbies",
       "flipbook": {
         "frametime": 4,
         "images": 4

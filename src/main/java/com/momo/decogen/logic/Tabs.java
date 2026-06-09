@@ -12,7 +12,7 @@ public class Tabs {
             "crafting",
             "flags",
             "food",
-            "hobby",
+            "hobbies",
             "kitchen",
             "laundry",
             "lighting",

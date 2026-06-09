@@ -77,7 +77,7 @@ public class EditorPanel {
     // Composite
     private final CheckBox compositeCheck;
     private final VBox compositeBox;
-    private final TextField compositeModelField;
+    private final ComboBox<String> compositeModelField;
     private final ComboBox<String> compositeTextureDropdown;
     private final CheckBox compositeTransparencyCheck;
 
@@ -215,7 +215,7 @@ public class EditorPanel {
             compositeBox.setVisible(n);
             compositeBox.setManaged(n);
         });
-        compositeModelField = textField("Composite model name");
+        compositeModelField = editableCombo("e.g., portable_record_player_disc");
         compositeTextureDropdown = editableCombo("Optional texture override");
         compositeTransparencyCheck = darkCheck("Composite transparency");
         compositeBox.getChildren().addAll(
@@ -397,6 +397,19 @@ public class EditorPanel {
         compositeTextureDropdown.getItems().setAll(allTextures);
     }
 
+    /** Populate the composite model dropdown with the models dropped into the
+     *  generator (the combo stays editable, so a model that wasn't dropped can
+     *  still be typed). */
+    private void refreshCompositeModelOptions() {
+        List<String> models = new ArrayList<>();
+        models.add("");
+        models.addAll(controller.getParsedModels().keySet());
+        if (models.size() > 1) {
+            Collections.sort(models.subList(1, models.size()));
+        }
+        compositeModelField.getItems().setAll(models);
+    }
+
     private List<String> buildLinkTargets() {
         List<String> targets = new ArrayList<>();
         targets.add("");
@@ -457,6 +470,7 @@ public class EditorPanel {
 
     public void loadEntry(DecoEntry entry) {
         refreshTextureDropdowns();
+        refreshCompositeModelOptions();
         refreshActionLinkOptions();
         refreshAnimationOptions(entry.getModel());
         refreshParticleHint(entry.getModel());
@@ -490,12 +504,12 @@ public class EditorPanel {
         Composite comp = entry.getComposite();
         if (comp != null) {
             compositeCheck.setSelected(true);
-            compositeModelField.setText(nn(comp.getModel()));
+            compositeModelField.setValue(nn(comp.getModel()));
             compositeTextureDropdown.setValue(nn(comp.getTexture()));
             compositeTransparencyCheck.setSelected(Boolean.TRUE.equals(comp.getTransparency()));
         } else {
             compositeCheck.setSelected(false);
-            compositeModelField.setText("");
+            compositeModelField.setValue("");
             compositeTextureDropdown.setValue("");
             compositeTransparencyCheck.setSelected(false);
         }
@@ -563,6 +577,7 @@ public class EditorPanel {
 
     public void clearFields() {
         refreshTextureDropdowns();
+        refreshCompositeModelOptions();
         refreshActionLinkOptions();
 
         nameField.setText("");
@@ -587,7 +602,7 @@ public class EditorPanel {
         displayableCheck.setSelected(false);
 
         compositeCheck.setSelected(false);
-        compositeModelField.setText("");
+        compositeModelField.setValue("");
         compositeTextureDropdown.setValue("");
         compositeTransparencyCheck.setSelected(false);
 
@@ -679,7 +694,7 @@ public class EditorPanel {
 
         if (compositeCheck.isSelected()) {
             Composite c = new Composite();
-            c.setModel(nullIfEmpty(compositeModelField.getText()));
+            c.setModel(comboValue(compositeModelField));
             c.setTexture(comboValue(compositeTextureDropdown));
             c.setTransparency(compositeTransparencyCheck.isSelected() ? Boolean.TRUE : null);
             e.setComposite(c);

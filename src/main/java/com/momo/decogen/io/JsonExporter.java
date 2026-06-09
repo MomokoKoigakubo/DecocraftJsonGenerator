@@ -73,10 +73,7 @@ public class JsonExporter {
         if (Boolean.TRUE.equals(entry.getHidden())) map.put("hidden", true);
         if (entry.getLoot() != null) map.put("loot", entry.getLoot());
 
-        // Crafting color (18) - last flat field before nested/array/script groups
-        map.put("crafting_color", entry.getCraftingColor());
-
-        // Composite & flipbook (19-20)
+        // Composite & flipbook (18-19)
         if (entry.getComposite() != null) {
             Map<String, Object> cm = buildCompositeMap(entry.getComposite());
             if (!cm.isEmpty()) map.put("composite", cm);
@@ -85,7 +82,7 @@ public class JsonExporter {
             map.put("flipbook", buildFlipbookMap(entry.getFlipbook()));
         }
 
-        // Chain (21-24)
+        // Chain (20-23)
         if (entry.getChainModels() != null && !entry.getChainModels().isEmpty()) {
             map.put("chain_models", entry.getChainModels());
         }
@@ -95,17 +92,22 @@ public class JsonExporter {
         if (entry.getChainPattern() != null) map.put("chain_pattern", entry.getChainPattern());
         if (entry.getLighting() != null) map.put("lighting", entry.getLighting());
 
-        // Growable (25-26)
+        // Growable (24-25)
         if (entry.getStructures() != null && !entry.getStructures().isEmpty()) {
             map.put("structures", entry.getStructures());
         }
         if (entry.getInstant() != null) map.put("instant", entry.getInstant());
 
-        // Script (27)
+        // Script (26)
         if (entry.getScript() != null) {
             Map<String, Object> scriptMap = buildScriptMap(entry.getScript());
             if (!scriptMap.isEmpty()) map.put("script", scriptMap);
         }
+
+        // Crafting color - emitted last, after all nested/array/script groups.
+        // Matches real Decocraft entries where crafting_color trails composite
+        // and script (see json_documentation.md "Jukebox with Composite Disc").
+        map.put("crafting_color", entry.getCraftingColor());
 
         return map;
     }
