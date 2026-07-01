@@ -6,13 +6,16 @@ import com.momo.decogen.io.DirectoryScanner;
 import com.momo.decogen.io.JsonExporter;
 import com.momo.decogen.logic.ChainBuilder;
 import com.momo.decogen.logic.EntryBuilder;
+import com.momo.decogen.logic.EntrySorter;
 import com.momo.decogen.logic.History;
+import com.momo.decogen.logic.JsonImporter;
 import com.momo.decogen.logic.TextureMatcher;
 import com.momo.decogen.model.DecoEntry;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -20,9 +23,15 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.RadioButton;
+import javafx.scene.control.Separator;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
@@ -184,15 +193,23 @@ public class AppController {
 
         List<String> resolved = resolveModelsForTexture(textureName);
         if (resolved.isEmpty()) {
-            // No model matched by prefix — but an orphan icon entry (created
-            // earlier when an icon was dropped before its texture) may be
-            // waiting on this texture's color suffix. Pair them up so e.g. a
-            // school_desk_red icon entry gets school_set_red as its material.
-            DecoEntry waiting = findEmptyIconEntryForLooseTexture(textureName);
-            if (waiting != null) {
-                waiting.setMaterial(textureName);
-                System.out.println("Bound loose texture to icon entry: "
-                        + textureName + " -> " + waiting.getDecoref());
+            // No model matched by prefix. This is usually a SHARED generic
+            // texture (e.g. the one "candle_holder_black_flipbook" flame used
+            // by every candle_holder_N): fan it out to every still-empty icon
+            // of the same color in its family. Falls back to a single
+            // longest-match bind for odd cases (covers the school_desk_red ->
+            // school_set_red divergence).
+            int filled = fanOutLooseTextureToIcons(textureName);
+            if (filled == 0) {
+                DecoEntry waiting = findEmptyIconEntryForLooseTexture(textureName);
+                if (waiting != null) {
+                    waiting.setMaterial(textureName);
+                    filled = 1;
+                }
+            }
+            if (filled > 0) {
+                System.out.println("Bound loose texture " + textureName
+                        + " to " + filled + " icon entr" + (filled == 1 ? "y" : "ies"));
                 refreshEntryList();
                 return;
             }
@@ -280,6 +297,25 @@ public class AppController {
      * given texture. That entry is waiting for this texture.
      */
     private DecoEntry findEmptyIconEntryForTexture(String modelName, String textureName) {
+        // Prefer the icon whose decoref IS this texture's base name (ignoring a
+        // trailing "_flipbook"): candle_holder_4_black_flipbook fills the
+        // candle_holder_4_black icon exactly, never a same-color sibling.
+        String base = TextureMatcher.stripFlipbook(textureName.toLowerCase());
+        for (DecoEntry e : entries) {
+            if (!modelName.equals(e.getModel())) continue;
+            if (e.getDecoref() == null) continue;
+            if (!e.getDecoref().toLowerCase().equals(base)) continue;
+            // Fill an empty icon, OR upgrade one that a shared generic filled
+            // earlier — a per-model texture is more specific and should win
+            // regardless of drop order. If it already holds this exact
+            // texture, there's nothing to do.
+            String mat = e.getMaterial();
+            if (mat == null || !TextureMatcher.stripFlipbook(mat.toLowerCase()).equals(base)) {
+                return e;
+            }
+            return null;
+        }
+
         String suffix = TextureMatcher.extractColorSuffix(textureName);
         if (suffix == null || suffix.isEmpty()) return null;
         String suffixLower = "_" + suffix.toLowerCase();
@@ -301,6 +337,45 @@ public class AppController {
      * diverge but share a color suffix. Prefers the longest-matching decoref
      * suffix to disambiguate red vs dark_red.
      */
+    /**
+     * A shared generic texture (matches no model by prefix) fills EVERY
+     * still-empty icon entry of the same colour. Decocraft flame textures like
+     * "candle_holder_black_flipbook" are deliberately shared across families —
+     * candle_holder_1_black, candle_holder_wall_2_black AND chandelier_1_black
+     * all use the same flame — so matching is by colour only, NOT family. Only
+     * empty entries are touched, so a per-model/exact texture already bound to
+     * an icon still wins. Returns the number of icon entries filled.
+     */
+    private int fanOutLooseTextureToIcons(String textureName) {
+        String suffix = TextureMatcher.extractColorSuffix(textureName);
+        if (suffix == null || suffix.isEmpty()) return 0;
+        String suffixLower = "_" + suffix.toLowerCase();
+
+        String texBase = TextureMatcher.stripFlipbook(textureName.toLowerCase());
+        if (!texBase.endsWith(suffixLower)) return 0;
+        String texFamily = texBase.substring(0, texBase.length() - suffixLower.length());
+        // A bare "black_flipbook" (no family) is too generic to fan out safely;
+        // defer to the single-bind fallback instead.
+        if (texFamily.isEmpty()) return 0;
+
+        int filled = 0;
+        for (DecoEntry e : entries) {
+            if (e.getModel() == null) continue;
+            if (e.getMaterial() != null) continue;
+            if (e.getDecoref() == null) continue;
+            String dl = e.getDecoref().toLowerCase();
+            // The icon's OWN colour must equal the texture's colour, so a "gold"
+            // flame doesn't leak into a "rose_gold" icon (which also ends in
+            // "_gold"). extractColorSuffix parses the longest known colour.
+            String iconColor = TextureMatcher.extractColorSuffix(e.getDecoref());
+            if (!suffix.equalsIgnoreCase(iconColor)) continue;
+            if (!dl.endsWith(suffixLower)) continue;
+            e.setMaterial(textureName);
+            filled++;
+        }
+        return filled;
+    }
+
     private DecoEntry findEmptyIconEntryForLooseTexture(String textureName) {
         String suffix = TextureMatcher.extractColorSuffix(textureName);
         if (suffix == null || suffix.isEmpty()) return null;
@@ -330,6 +405,12 @@ public class AppController {
      * ends with that suffix (so it can become the icon entry's material).
      */
     private String findUnmatchedTextureForIcon(String iconName, String modelName) {
+        // Same-name (± "_flipbook") texture wins first, so this model's icon
+        // never borrows another model's same-color texture.
+        String exact = TextureMatcher.findExactTextureForIcon(
+                iconName, unmatchedTextures, textureFiles.keySet(), iconFiles.keySet());
+        if (exact != null) return exact;
+
         if (iconName.length() <= modelName.length() + 1) return null;
         String suffix = iconName.substring(modelName.length() + 1);
         return TextureMatcher.findMatchingTextureForSuffix(
@@ -528,6 +609,213 @@ public class AppController {
 
     private static String nullSafe(String s) {
         return s == null ? "" : s;
+    }
+
+    /** One draggable, tickable row in a Sort/Chain dialog. Tag identifies the axis. */
+    private static final class AxisToggle {
+        final Object tag;
+        final String label;
+        final javafx.beans.property.BooleanProperty enabled;
+        AxisToggle(Object tag, String label, boolean on) {
+            this.tag = tag;
+            this.label = label;
+            this.enabled = new javafx.beans.property.SimpleBooleanProperty(on);
+        }
+    }
+
+    /**
+     * Sort dialog: the axes are draggable boxes in a list — drag to set their
+     * weight against each other (top = applied first), tick to include. An
+     * entry that carries several axes (e.g. metal + colour) falls through to
+     * the next ticked axis. Default order reproduces the canonical per-model
+     * finish sort (Group → … → Metal → Colour).
+     */
+    public void openSortDialog() {
+        if (entries.isEmpty()) {
+            showAlert("Nothing to Sort", "Drop some models/textures first — there are no entries to sort.");
+            return;
+        }
+
+        ObservableList<AxisToggle> axes = FXCollections.observableArrayList(
+                new AxisToggle(EntrySorter.Key.GROUP, "Group — keep same-model variants together", true),
+                new AxisToggle(EntrySorter.Key.ALPHABETICAL, "Alphabetical — base name", true),
+                new AxisToggle(EntrySorter.Key.NUMBER, "Number — e.g. holder 1, 2, 3", true),
+                new AxisToggle(EntrySorter.Key.METAL, "Metal colour — silver, gold, rose gold, brass", true),
+                new AxisToggle(EntrySorter.Key.WOOD, "Wood colour — birch, oak, cherry, palm, spruce, ebony", true),
+                new AxisToggle(EntrySorter.Key.COLOUR, "Colour — black, green, white, then rainbow", true)
+        );
+
+        ListView<AxisToggle> list = new ListView<>(axes);
+        list.setPrefHeight(220);
+        list.setCellFactory(lv -> makeAxisCell(axes));
+
+        Label hint = new Label("Drag the boxes to weight them — top is applied first. "
+                + "Untick an axis to ignore it; an entry with several (metal + colour) "
+                + "uses the next ticked axis to break ties.");
+        hint.setWrapText(true);
+        hint.setStyle("-fx-text-fill: #1a1a1a;");
+        CheckBox reverse = new CheckBox("Reverse (descending)");
+
+        VBox content = new VBox(8, hint, list, reverse);
+        content.setPadding(new Insets(10));
+        content.setPrefWidth(360);
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        if (primaryStage != null) {
+            dialog.initOwner(primaryStage);
+            dialog.initModality(Modality.WINDOW_MODAL);
+        }
+        dialog.setTitle("Sort Entries");
+        dialog.setHeaderText("Drag to weight the sort axes against each other.");
+        dialog.getDialogPane().setContent(content);
+
+        ButtonType applyBtn = new ButtonType("Sort", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(applyBtn, ButtonType.CANCEL);
+
+        Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
+        if (result.isEmpty() || result.get() != applyBtn) return;
+
+        List<EntrySorter.Key> order = new ArrayList<>();
+        for (AxisToggle a : axes) {
+            if (a.enabled.get()) order.add((EntrySorter.Key) a.tag);
+        }
+        if (order.isEmpty()) {
+            showAlert("Sort Entries", "Tick at least one axis to sort by.");
+            return;
+        }
+
+        snapshot();
+        entries.setAll(EntrySorter.sorted(entries, order, reverse.isSelected()));
+        refreshEntryList();
+    }
+
+    /** A draggable, tickable cell for a Sort/Chain dialog's axis list. */
+    private ListCell<AxisToggle> makeAxisCell(ObservableList<AxisToggle> axes) {
+        ListCell<AxisToggle> cell = new ListCell<>() {
+            private final CheckBox check = new CheckBox();
+            @Override
+            protected void updateItem(AxisToggle item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+                check.setStyle("-fx-text-fill: black;");
+                check.setText("☰  " + item.label);   // ≡ = drag handle
+                check.setOnAction(null);
+                check.setSelected(item.enabled.get());
+                check.setOnAction(e -> item.enabled.set(check.isSelected()));
+                setGraphic(check);
+            }
+        };
+
+        cell.setOnDragDetected(ev -> {
+            if (cell.isEmpty()) return;
+            javafx.scene.input.Dragboard db = cell.startDragAndDrop(javafx.scene.input.TransferMode.MOVE);
+            javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
+            cc.putString(Integer.toString(cell.getIndex()));
+            db.setContent(cc);
+            ev.consume();
+        });
+        cell.setOnDragOver(ev -> {
+            if (ev.getGestureSource() != cell && ev.getDragboard().hasString()) {
+                ev.acceptTransferModes(javafx.scene.input.TransferMode.MOVE);
+            }
+            ev.consume();
+        });
+        cell.setOnDragDropped(ev -> {
+            if (!ev.getDragboard().hasString()) {
+                ev.setDropCompleted(false);
+                ev.consume();
+                return;
+            }
+            int from = Integer.parseInt(ev.getDragboard().getString());
+            if (from < 0 || from >= axes.size()) {
+                ev.setDropCompleted(false);
+                ev.consume();
+                return;
+            }
+            int to = cell.isEmpty() ? axes.size() - 1 : cell.getIndex();
+            AxisToggle moved = axes.remove(from);
+            if (to > axes.size()) to = axes.size();
+            axes.add(to, moved);
+            ev.setDropCompleted(true);
+            ev.consume();
+        });
+        return cell;
+    }
+
+    /**
+     * Chain dialog (tool_modelswitch): the ordering axes are draggable boxes —
+     * drag to weight them, top applied first. Entries are cycled within each
+     * model (and each open/closed state, auto-detected) sorted by all ticked
+     * axes combined, so Metal + Colour link in the canonical single cycle
+     * Silver→Gold→Rose Gold→Brass→Black→Green→White. on_use state pairs are a
+     * separate button, so an entry can carry both link types.
+     */
+    public void openChainDialog() {
+        if (entries.isEmpty()) {
+            showAlert("Nothing to Chain", "There are no entries to chain.");
+            return;
+        }
+
+        ObservableList<AxisToggle> axes = FXCollections.observableArrayList(
+                new AxisToggle(ChainBuilder.ChainAxis.METAL, "Metal colour — silver, gold, rose gold, brass", true),
+                new AxisToggle(ChainBuilder.ChainAxis.COLOUR, "Colour — black, green, white, then rainbow", true),
+                new AxisToggle(ChainBuilder.ChainAxis.WOOD, "Wood type — birch, oak, cherry, palm, spruce, ebony", false),
+                new AxisToggle(ChainBuilder.ChainAxis.ORDER, "Current list order", false)
+        );
+
+        ListView<AxisToggle> list = new ListView<>(axes);
+        list.setPrefHeight(180);
+        list.setCellFactory(lv -> makeAxisCell(axes));
+
+        Label hint = new Label("Drag to weight the axes (top applied first). Entries are cycled "
+                + "per model — and per open/closed state — sorted by all ticked axes combined "
+                + "(so Metal + Colour give one Silver→…→White cycle). Sort first, then chain by "
+                + "\"Current list order\" to lock in a hand-arranged sequence. Open↔closed on_use "
+                + "linking is the separate \"Pair States\" button.");
+        hint.setWrapText(true);
+        hint.setStyle("-fx-text-fill: #1a1a1a;");
+
+        VBox content = new VBox(8, hint, list);
+        content.setPadding(new Insets(10));
+        content.setPrefWidth(380);
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        if (primaryStage != null) {
+            dialog.initOwner(primaryStage);
+            dialog.initModality(Modality.WINDOW_MODAL);
+        }
+        dialog.setTitle("Build Chain");
+        dialog.setHeaderText("Drag to weight the chain axes against each other.");
+        dialog.getDialogPane().setContent(content);
+        ButtonType buildBtn = new ButtonType("Build Chain", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(buildBtn, ButtonType.CANCEL);
+
+        Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
+        if (result.isEmpty() || result.get() != buildBtn) return;
+
+        List<ChainBuilder.ChainAxis> orderingAxes = new ArrayList<>();
+        for (AxisToggle a : axes) {
+            if (a.enabled.get() && a.tag instanceof ChainBuilder.ChainAxis) {
+                orderingAxes.add((ChainBuilder.ChainAxis) a.tag);
+            }
+        }
+        if (orderingAxes.isEmpty()) {
+            showAlert("Build Chain", "Tick at least one axis to chain by.");
+            return;
+        }
+
+        snapshot();
+        List<DecoEntry> chained = ChainBuilder.buildWeightedChain(new ArrayList<>(entries), orderingAxes);
+        entries.setAll(chained);
+        refreshEntryList();
+        updateJsonPreview();
+
+        String cycledBy = orderingAxes.stream().map(x -> x.name().toLowerCase()).reduce((x, y) -> x + " → " + y).orElse("");
+        showAlert("Chain Built", "Cycled per model by: " + cycledBy + " (tool_modelswitch).");
     }
 
     public void pairSelectedTexturesWithModel() {
@@ -746,6 +1034,115 @@ public class AppController {
                     "Linked " + pairs + " pair" + (pairs == 1 ? "" : "s") +
                             " via on_use (suffix '_" + suffix.trim() + "').");
         }
+    }
+
+    /** on_use pairing "by order": directed right-click cycle in list order. */
+    public void pairByOrder() {
+        if (entries.isEmpty()) {
+            showAlert("Pair by Order", "There are no entries to pair.");
+            return;
+        }
+        snapshot();
+        int n = ChainBuilder.pairByOrder(new ArrayList<>(entries));
+        refreshEntryList();
+        updateJsonPreview();
+        showAlert("Pair by Order", n == 0
+                ? "Need at least two entries to pair."
+                : "Linked " + n + " entries in a right-click on_use cycle (arrange the list order first).");
+    }
+
+    /**
+     * on_use pairing dialog: pick a mode (By State / By Order / By Sequential)
+     * via radio buttons — a popup like the Chain dialog, not a dropdown. The
+     * state-suffix field is only enabled for "By State".
+     */
+    public void openPairDialog() {
+        if (entries.isEmpty()) {
+            showAlert("Nothing to Pair", "There are no entries to pair.");
+            return;
+        }
+
+        ToggleGroup group = new ToggleGroup();
+        RadioButton byState = new RadioButton("By State — base ↔ open / on / closed variant");
+        RadioButton byOrder = new RadioButton("By Order — cycle every entry in the current list order");
+        RadioButton bySeq = new RadioButton("By Sequential — numbered steps (…_open_1 → …_2 → …_3)");
+        for (RadioButton r : new RadioButton[]{byState, byOrder, bySeq}) {
+            r.setToggleGroup(group);
+        }
+        byState.setSelected(true);
+
+        Label suffixLabel = new Label("State suffix:");
+        ComboBox<String> suffixCombo = new ComboBox<>();
+        suffixCombo.setEditable(true);
+        suffixCombo.getItems().addAll(ChainBuilder.KNOWN_STATE_SUFFIXES);
+        suffixCombo.setValue("open");
+        suffixCombo.setMaxWidth(Double.MAX_VALUE);
+        Runnable syncSuffix = () -> {
+            boolean s = byState.isSelected();
+            suffixLabel.setDisable(!s);
+            suffixCombo.setDisable(!s);
+        };
+        group.selectedToggleProperty().addListener((o, a, b) -> syncSuffix.run());
+        syncSuffix.run();
+
+        VBox content = new VBox(8,
+                new Label("Link entries with on_use (right-click). Independent of the\n"
+                        + "tool_modelswitch chain, so an entry can carry both."),
+                byState, byOrder, bySeq,
+                new Separator(), suffixLabel, suffixCombo);
+        content.setPadding(new Insets(10));
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        if (primaryStage != null) {
+            dialog.initOwner(primaryStage);
+            dialog.initModality(Modality.WINDOW_MODAL);
+        }
+        dialog.setTitle("Pair on_use");
+        dialog.setHeaderText("Choose how to link entries by on_use.");
+        dialog.getDialogPane().setContent(content);
+        ButtonType pairBtn = new ButtonType("Pair", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(pairBtn, ButtonType.CANCEL);
+
+        Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
+        if (result.isEmpty() || result.get() != pairBtn) return;
+
+        if (byOrder.isSelected()) {
+            pairByOrder();
+        } else if (bySeq.isSelected()) {
+            pairSequential();
+        } else {
+            String suffix = suffixCombo.getValue();
+            if (suffix == null) suffix = suffixCombo.getEditor().getText();
+            if (suffix == null || suffix.trim().isEmpty()) {
+                showAlert("Pair by State", "Enter a state suffix (e.g. open).");
+                return;
+            }
+            snapshot();
+            int pairs = ChainBuilder.linkStatePairs(new ArrayList<>(entries), suffix.trim());
+            refreshEntryList();
+            updateJsonPreview();
+            showAlert("Pair by State", pairs == 0
+                    ? "No pairs found for suffix '_" + suffix.trim() + "'.\n"
+                            + "Make sure both a base entry and a 'base_" + suffix.trim() + "' entry exist."
+                    : "Linked " + pairs + " pair" + (pairs == 1 ? "" : "s")
+                            + " via on_use (suffix '_" + suffix.trim() + "').");
+        }
+    }
+
+    /** on_use pairing "by sequential": numbered progressions (…_1 → …_2 → …_3 → …_1). */
+    public void pairSequential() {
+        if (entries.isEmpty()) {
+            showAlert("Pair Sequential", "There are no entries to pair.");
+            return;
+        }
+        snapshot();
+        int linked = ChainBuilder.pairSequential(new ArrayList<>(entries));
+        refreshEntryList();
+        updateJsonPreview();
+        showAlert("Pair Sequential", linked == 0
+                ? "No numbered sequences found. Sequential pairs entries like\n"
+                        + "drawer_1_open_1 → drawer_1_open_2 → drawer_1_open_3 by their trailing number."
+                : "Linked " + linked + " entries into numbered on_use sequences (…_1 → …_2 → … → wraps).");
     }
 
     // --- Normalize ---
@@ -1044,6 +1441,66 @@ public class AppController {
 
     // --- Export / reset ---
 
+    /**
+     * Import dialog: paste a JSON array (or object) of Decocraft entries. The
+     * entries load into the editable list (replacing or appended), and the JSON
+     * preview re-formats them. Foreign fields the tool doesn't model are dropped.
+     */
+    public void importJson() {
+        TextArea area = new TextArea();
+        area.setPromptText("Paste a JSON array of entries here…");
+        area.setPrefRowCount(18);
+        area.setPrefColumnCount(64);
+        area.setStyle("-fx-font-family: 'monospace'; -fx-control-inner-background: white; -fx-text-fill: black;");
+
+        CheckBox replaceCheck = new CheckBox("Replace current entries (otherwise append)");
+        replaceCheck.setSelected(entries.isEmpty());
+
+        VBox content = new VBox(8, new Label("Paste Decocraft entry JSON:"), area, replaceCheck);
+        content.setPadding(new Insets(10));
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        if (primaryStage != null) {
+            dialog.initOwner(primaryStage);
+            dialog.initModality(Modality.WINDOW_MODAL);
+        }
+        dialog.setTitle("Import JSON");
+        dialog.setHeaderText("Paste JSON to load entries for editing.");
+        dialog.getDialogPane().setContent(content);
+        dialog.setResizable(true);
+        ButtonType importBtn = new ButtonType("Import", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(importBtn, ButtonType.CANCEL);
+
+        Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
+        if (result.isEmpty() || result.get() != importBtn) return;
+
+        String text = area.getText();
+        if (text == null || text.trim().isEmpty()) {
+            showAlert("Import JSON", "Nothing to import — paste some JSON first.");
+            return;
+        }
+
+        List<DecoEntry> parsed;
+        try {
+            parsed = JsonImporter.parse(text);
+        } catch (Exception ex) {
+            showAlert("Import Failed", "Couldn't parse the JSON:\n" + ex.getMessage());
+            return;
+        }
+        if (parsed.isEmpty()) {
+            showAlert("Import JSON", "No entries found in the pasted JSON.");
+            return;
+        }
+
+        snapshot();
+        if (replaceCheck.isSelected()) entries.setAll(parsed);
+        else entries.addAll(parsed);
+        refreshEntryList();
+        updateJsonPreview();
+        showAlert("Import Complete",
+                "Imported " + parsed.size() + " entr" + (parsed.size() == 1 ? "y" : "ies") + ".");
+    }
+
     public void exportJson(Stage stage) {
         if (entries.isEmpty()) {
             showAlert("No Entries", "Add some models and textures first.");
@@ -1092,22 +1549,10 @@ public class AppController {
         runPreservingStage(alert::showAndWait);
     }
 
-    // Some Linux window managers (GNOME/mutter) drop the owner stage out of
-    // maximized/fullscreen state when a modal or native file chooser opens.
-    // Capture the state before, restore it on the FX thread after the popup
-    // returns. No-op on Windows/macOS where setMaximized(true) on an already-
-    // maximized stage is idempotent.
+    // Guard the owner stage against Linux window-manager resizing while a modal
+    // dialog / native chooser is open. See StageGuard for the full rationale.
     private <T> T runPreservingStage(java.util.function.Supplier<T> popup) {
-        boolean wasMaximized = primaryStage != null && primaryStage.isMaximized();
-        boolean wasFullScreen = primaryStage != null && primaryStage.isFullScreen();
-        T result = popup.get();
-        if (primaryStage != null && (wasMaximized || wasFullScreen)) {
-            Platform.runLater(() -> {
-                if (wasFullScreen && !primaryStage.isFullScreen()) primaryStage.setFullScreen(true);
-                if (wasMaximized && !primaryStage.isMaximized()) primaryStage.setMaximized(true);
-            });
-        }
-        return result;
+        return StageGuard.runPreserving(primaryStage, popup);
     }
 
     // --- Updates ---

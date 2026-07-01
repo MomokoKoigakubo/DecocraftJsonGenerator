@@ -7,8 +7,6 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Label;
-import javafx.scene.control.MenuButton;
-import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -36,13 +34,19 @@ public class TopBar {
         exportBtn.setOnAction(e -> controller.exportJson(stage));
         exportBtn.setTooltip(tooltip("Save all entries to a JSON file"));
 
+        Button importBtn = new Button("Import JSON…");
+        importBtn.setPrefHeight(35);
+        importBtn.setStyle("-fx-background-color: #5865F2; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
+        importBtn.setOnAction(e -> controller.importJson());
+        importBtn.setTooltip(tooltip("Paste a JSON array of entries to load and edit"));
+
         Button resetBtn = new Button("Reset All");
         resetBtn.setPrefHeight(35);
         resetBtn.setStyle("-fx-background-color: #ed4245; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
         resetBtn.setOnAction(e -> controller.resetAll());
         resetBtn.setTooltip(tooltip("Clear all entries, models, textures, and icons"));
 
-        Button autoMatchBtn = new Button("Auto Match Textures");
+        Button autoMatchBtn = new Button("Auto Match");
         autoMatchBtn.setPrefHeight(35);
         autoMatchBtn.setStyle("-fx-background-color: #3ba55c; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
         autoMatchBtn.setOnAction(e -> controller.autoMatchTextures());
@@ -60,107 +64,36 @@ public class TopBar {
         addWordBtn.setOnAction(e -> controller.normalizeAddWord());
         addWordBtn.setTooltip(tooltip("Insert a word at a chosen position in every entry's name, decoref, and/or material"));
 
-        MenuButton sortBtn = new MenuButton("Sort\u2026");
+        Button sortBtn = new Button("Sort\u2026");
         sortBtn.setPrefHeight(35);
         sortBtn.setStyle("-fx-background-color: #6c757d; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
-        sortBtn.setTooltip(tooltip("Reorder entries in the list. Choose a sort key."));
-        MenuItem sortDecorefAsc = new MenuItem("Decoref (A\u2192Z)");
-        sortDecorefAsc.setOnAction(e -> controller.sortEntriesByDecoref(true));
-        MenuItem sortDecorefDesc = new MenuItem("Decoref (Z\u2192A)");
-        sortDecorefDesc.setOnAction(e -> controller.sortEntriesByDecoref(false));
-        MenuItem sortNameAsc = new MenuItem("Name (A\u2192Z)");
-        sortNameAsc.setOnAction(e -> controller.sortEntriesByName(true));
-        MenuItem sortModelThenDecoref = new MenuItem("Model, then Decoref");
-        sortModelThenDecoref.setOnAction(e -> controller.sortEntriesByModelThenDecoref());
-        sortBtn.getItems().addAll(sortDecorefAsc, sortDecorefDesc, sortNameAsc, sortModelThenDecoref);
+        sortBtn.setTooltip(tooltip("Reorder entries by Metal, Colour, Number, and/or Alphabetical \u2014 combine axes in one dialog."));
+        sortBtn.setOnAction(e -> controller.openSortDialog());
 
-        // Rainbow button: OKLab-ish 12-stop gradient + stroked Text so the
-        // letters stay legible against every band of the spectrum. The dual
-        // background layer fakes a 1px dark edge without changing layout.
-        Text rainbowLabel = new Text("Rainbow Chain");
-        rainbowLabel.setFill(Color.WHITE);
-        rainbowLabel.setStroke(Color.rgb(0, 0, 0, 0.85));
-        rainbowLabel.setStrokeWidth(0.9);
-        rainbowLabel.setFont(Font.font("System", FontWeight.BOLD, 13));
+        // Chain / Link by Order / Pair on_use share one style (they all build
+        // links). USE_PREF_SIZE stops the labels truncating in a crowded bar.
+        String linkStyle = "-fx-background-color: #17a2b8; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;";
 
-        Button rainbowChainBtn = new Button();
-        rainbowChainBtn.setGraphic(rainbowLabel);
-        rainbowChainBtn.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-        rainbowChainBtn.setAlignment(Pos.CENTER);
-        rainbowChainBtn.setPrefHeight(35);
-        rainbowChainBtn.setMinHeight(35);
-        rainbowChainBtn.setMaxHeight(35);
-        rainbowChainBtn.setStyle(
-                "-fx-background-color: rgba(0,0,0,0.55), linear-gradient(to right, "
-                + "#ff4d4d, #ff8a33, #ffc21f, #f5e93a, #aed852, "
-                + "#4dcc75, #1fc4a8, #2aa8dd, #4f7ff0, #8b5ce0, "
-                + "#c75bc7, #ff5ca3); "
-                + "-fx-background-insets: 0, 1; "
-                + "-fx-background-radius: 4, 3; "
-                + "-fx-padding: 0 12 0 12; "
-                + "-fx-cursor: hand;"
-        );
-        rainbowChainBtn.setOnAction(e -> controller.buildRainbowChain());
-        rainbowChainBtn.setTooltip(tooltip("Sort entries by color and link them in rainbow order (tool_modelswitch)"));
-
-        // Wood button: horizontal gradient that evokes spruce plank grain
-        // (warm brown with darker/lighter stripes). Stroked text for parity
-        // with the rainbow button.
-        Text woodLabel = new Text("Wood Chain");
-        woodLabel.setFill(Color.WHITE);
-        woodLabel.setStroke(Color.rgb(0, 0, 0, 0.85));
-        woodLabel.setStrokeWidth(0.9);
-        woodLabel.setFont(Font.font("System", FontWeight.BOLD, 13));
-
-        Button woodChainBtn = new Button();
-        woodChainBtn.setGraphic(woodLabel);
-        woodChainBtn.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-        woodChainBtn.setAlignment(Pos.CENTER);
-        woodChainBtn.setPrefHeight(35);
-        woodChainBtn.setMinHeight(35);
-        woodChainBtn.setMaxHeight(35);
-        // 16 hard-stop color blocks = one row of a spruce-plank texture,
-        // stretched across the button so each pixel reads as a chunky block
-        // without interpolation (no gradient blur).
-        String sprucePixels =
-                "#5a3e24 0%, #5a3e24 6.25%,"
-                + "#7a5738 6.25%, #7a5738 12.5%,"
-                + "#98744e 12.5%, #98744e 18.75%,"
-                + "#6e5030 18.75%, #6e5030 25%,"
-                + "#4d3821 25%, #4d3821 31.25%,"
-                + "#80603a 31.25%, #80603a 37.5%,"
-                + "#9a7550 37.5%, #9a7550 43.75%,"
-                + "#705234 43.75%, #705234 50%,"
-                + "#8a6842 50%, #8a6842 56.25%,"
-                + "#5a3e24 56.25%, #5a3e24 62.5%,"
-                + "#7b5a3a 62.5%, #7b5a3a 68.75%,"
-                + "#a07e56 68.75%, #a07e56 75%,"
-                + "#806040 75%, #806040 81.25%,"
-                + "#604428 81.25%, #604428 87.5%,"
-                + "#705030 87.5%, #705030 93.75%,"
-                + "#88694a 93.75%, #88694a 100%";
-        woodChainBtn.setStyle(
-                "-fx-background-color: rgba(0,0,0,0.55), "
-                + "linear-gradient(to right, " + sprucePixels + "); "
-                + "-fx-background-insets: 0, 1; "
-                + "-fx-background-radius: 4, 3; "
-                + "-fx-padding: 0 12 0 12; "
-                + "-fx-cursor: hand;"
-        );
-        woodChainBtn.setOnAction(e -> controller.buildWoodChain());
-        woodChainBtn.setTooltip(tooltip("Sort entries by wood type and link them (tool_modelswitch)"));
+        Button chainBtn = new Button("Chain…");
+        chainBtn.setPrefHeight(35);
+        chainBtn.setMinWidth(Region.USE_PREF_SIZE);
+        chainBtn.setStyle(linkStyle);
+        chainBtn.setOnAction(e -> controller.openChainDialog());
+        chainBtn.setTooltip(tooltip("Build tool_modelswitch chains — drag to weight Colour / Wood / State pairs / list order and combine them."));
 
         Button orderLinkBtn = new Button("Link by Order");
         orderLinkBtn.setPrefHeight(35);
-        orderLinkBtn.setStyle("-fx-background-color: #ff00ff; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
+        orderLinkBtn.setMinWidth(Region.USE_PREF_SIZE);
+        orderLinkBtn.setStyle(linkStyle);
         orderLinkBtn.setOnAction(e -> controller.linkEntriesByOrder());
         orderLinkBtn.setTooltip(tooltip("Link each entry to the next in the current list order (tool_modelswitch). Drag entries to reorder first."));
 
-        Button linkPairsBtn = new Button("Link Pairs\u2026");
-        linkPairsBtn.setPrefHeight(35);
-        linkPairsBtn.setStyle("-fx-background-color: #f4a13c; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
-        linkPairsBtn.setOnAction(e -> controller.linkStatePairs());
-        linkPairsBtn.setTooltip(tooltip("Pair base \u2194 variant entries (e.g., closet \u2194 closet_open) via on_use.link. Run Rainbow/Wood Chain afterward to cycle colors within each state."));
+        Button pairBtn = new Button("Pair on_use…");
+        pairBtn.setPrefHeight(35);
+        pairBtn.setMinWidth(Region.USE_PREF_SIZE);
+        pairBtn.setStyle(linkStyle);
+        pairBtn.setOnAction(e -> controller.openPairDialog());
+        pairBtn.setTooltip(tooltip("Link entries with on_use (right-click) — pick By State / By Order / By Sequential in a dialog."));
 
         Label statsLabel = new Label();
         statsLabel.setStyle("-fx-text-fill: #72767d; -fx-font-size: 12px;");
@@ -173,7 +106,7 @@ public class TopBar {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        root.getChildren().addAll(exportBtn, autoMatchBtn, sortBtn, normalizeBtn, addWordBtn, rainbowChainBtn, woodChainBtn, orderLinkBtn, linkPairsBtn, resetBtn, spacer, statsLabel);
+        root.getChildren().addAll(exportBtn, importBtn, autoMatchBtn, sortBtn, normalizeBtn, addWordBtn, chainBtn, orderLinkBtn, pairBtn, resetBtn, spacer, statsLabel);
     }
 
     public HBox getRoot() {

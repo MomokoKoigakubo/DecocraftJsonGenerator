@@ -63,6 +63,9 @@ public class JsonExporter {
         // Tab & display (9-10)
         if (entry.getTabs() != null) map.put("tabs", entry.getTabs());
         if (entry.getDefaultAnimation() != null) map.put("default_animation", entry.getDefaultAnimation());
+        if (entry.getLightColor() != null && !entry.getLightColor().isEmpty()) {
+            map.put("light_color", entry.getLightColor());
+        }
 
         // Block type & behavior (11-17)
         if (entry.getType() != null) map.put("type", entry.getType());

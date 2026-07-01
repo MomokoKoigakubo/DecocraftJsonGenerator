@@ -23,6 +23,7 @@ public class DecoEntry {
     private String tabs;
     private int[] craftingColor = {0, 0, 0};
     private String defaultAnimation;
+    private String lightColor;   // hex tint (#RRGGBB) for the block's emitted light
 
     // block type & behavior
     private String type;
@@ -94,6 +95,9 @@ public class DecoEntry {
 
     public String getDefaultAnimation() { return defaultAnimation; }
     public void setDefaultAnimation(String defaultAnimation) { this.defaultAnimation = defaultAnimation; }
+
+    public String getLightColor() { return lightColor; }
+    public void setLightColor(String lightColor) { this.lightColor = lightColor; }
 
     // --- block type & behavior ---
     public String getType() { return type; }

@@ -90,8 +90,42 @@ public class TextureMatcher {
     }
 
     /**
+     * Find the block texture that belongs to this exact icon: one whose name
+     * equals the icon name, or the icon name plus a trailing "_flipbook".
+     * This keeps a "candle_holder_4_black" icon bound to
+     * "candle_holder_4_black_flipbook" instead of grabbing another model's
+     * "candle_holder_1_black_flipbook" via a loose color-suffix match.
+     * Prefers unmatched textures, then any non-icon texture.
+     */
+    public static String findExactTextureForIcon(String iconName,
+                                                 List<String> unmatchedTextures,
+                                                 Set<String> allTextureNames,
+                                                 Set<String> iconNames) {
+        String want = iconName.toLowerCase();
+
+        for (String textureName : unmatchedTextures) {
+            if (stripFlipbook(textureName.toLowerCase()).equals(want)) {
+                return textureName;
+            }
+        }
+
+        for (String textureName : allTextureNames) {
+            if (iconNames.contains(textureName)) continue;
+            if (stripFlipbook(textureName.toLowerCase()).equals(want)) {
+                return textureName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Find a non-icon texture whose name ends with the given suffix.
      * Prefers unmatched textures, then falls back to any texture that's not an icon.
+     *
+     * A trailing "_flipbook" token on the texture name is ignored when
+     * comparing, so an icon "candle_holder_4_black" pairs with the animated
+     * block texture "candle_holder_4_black_flipbook".
      */
     public static String findMatchingTextureForSuffix(String suffix,
                                                       List<String> unmatchedTextures,
@@ -100,18 +134,31 @@ public class TextureMatcher {
         String suffixLower = "_" + suffix.toLowerCase();
 
         for (String textureName : unmatchedTextures) {
-            if (textureName.toLowerCase().endsWith(suffixLower)) {
+            if (stripFlipbook(textureName.toLowerCase()).endsWith(suffixLower)) {
                 return textureName;
             }
         }
 
         for (String textureName : allTextureNames) {
-            if (textureName.toLowerCase().endsWith(suffixLower) && !iconNames.contains(textureName)) {
+            if (stripFlipbook(textureName.toLowerCase()).endsWith(suffixLower) && !iconNames.contains(textureName)) {
                 return textureName;
             }
         }
 
         return null;
+    }
+
+    /**
+     * Strip a single trailing "_flipbook" token from a (lower-cased) name.
+     * Decocraft animated block textures are named "{base}_flipbook"; that
+     * token is not part of the color/variant identity, so it must be removed
+     * before matching a texture against an icon or extracting its color.
+     */
+    public static String stripFlipbook(String lower) {
+        if (lower.endsWith("_flipbook")) {
+            return lower.substring(0, lower.length() - "_flipbook".length());
+        }
+        return lower;
     }
 
     /**
@@ -123,13 +170,17 @@ public class TextureMatcher {
      *   "bed_set_palm_pink"  → "palm_pink"
      */
     public static String extractColorSuffix(String textureName) {
-        String lower = textureName.toLowerCase();
+        // "candle_holder_4_black_flipbook" → color is "black", not the whole
+        // name. The animated-block "_flipbook" token is not part of the color.
+        String lower = stripFlipbook(textureName.toLowerCase());
 
+        // Multi-token finishes ("rose_gold") must precede their single-token
+        // suffix ("gold") so "..._rose_gold" isn't truncated to "gold".
         String[] knownColors = {
-                "light_blue", "light_gray", "dark_gray", "ocean_blue",
+                "light_blue", "light_gray", "dark_gray", "ocean_blue", "rose_gold",
                 "red", "orange", "yellow", "lime", "green", "cyan", "blue",
                 "purple", "magenta", "pink", "brown", "white", "cream",
-                "gray", "black"
+                "gray", "black", "gold", "silver", "brass", "bronze", "copper"
         };
 
         String[] woodsAndFrames = {"birch", "oak", "cherry", "palm", "spruce", "ebony", "white", "black"};

@@ -4,6 +4,8 @@ import com.momo.decogen.model.DecoEntry;
 import com.momo.decogen.model.Script;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ChainBuilder {
 
@@ -16,6 +18,71 @@ public class ChainBuilder {
      */
     public static final List<String> KNOWN_STATE_SUFFIXES =
             Arrays.asList("open", "on", "lit", "pressed", "closed");
+
+    /** Axes the weighted chain builder can order a cycle by. */
+    public enum ChainAxis { METAL, COLOUR, WOOD, ORDER }
+
+    /**
+     * Build tool_modelswitch cycles. Entries are grouped by model (chains never
+     * cross models) and, automatically, by paired open/closed state so each
+     * state cycles on its own. Within a group they are sorted by ALL the given
+     * axes combined, in weight order, then linked head-to-tail into one cycle —
+     * so axes=[METAL, COLOUR] yields the canonical single cycle
+     * Silver→Gold→Rose Gold→Brass→Black→Green→White (metal first, then colour),
+     * even when an item mixes metals and rainbow colours. Colour/metal/wood use
+     * the same canonical indices as the Sort dialog ({@link EntrySorter}).
+     * Returns the entries reordered so each cycle is contiguous (model-less
+     * entries kept at the end). on_use links are never touched.
+     */
+    public static List<DecoEntry> buildWeightedChain(List<DecoEntry> entries, List<ChainAxis> axes) {
+        if (axes == null || axes.isEmpty()) return new ArrayList<>(entries);
+
+        Set<String> pairedStates = detectPairedStates(entries);
+
+        Map<DecoEntry, Integer> orig = new IdentityHashMap<>();
+        for (int i = 0; i < entries.size(); i++) orig.put(entries.get(i), i);
+
+        Map<String, List<DecoEntry>> groups = new LinkedHashMap<>();
+        for (DecoEntry e : entries) {
+            if (e.getModel() == null) continue;
+            String state = extractState(e, pairedStates);
+            String key = e.getModel().toLowerCase() + "|" + (state == null ? "" : state);
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(e);
+        }
+
+        Comparator<DecoEntry> cmp = null;
+        for (ChainAxis axis : axes) {
+            Comparator<DecoEntry> next = axisComparator(axis, orig);
+            cmp = (cmp == null) ? next : cmp.thenComparing(next);
+        }
+
+        List<DecoEntry> result = new ArrayList<>();
+        for (List<DecoEntry> group : groups.values()) {
+            if (cmp != null) group.sort(cmp);
+            if (group.size() >= 2) {
+                for (int i = 0; i < group.size(); i++) {
+                    DecoEntry current = group.get(i);
+                    DecoEntry next = group.get((i + 1) % group.size());
+                    String linkTarget = getLinkTarget(next);
+                    if (linkTarget != null) setModelSwitchLink(current, linkTarget);
+                }
+            }
+            result.addAll(group);
+        }
+        for (DecoEntry e : entries) {
+            if (!result.contains(e)) result.add(e);
+        }
+        return result;
+    }
+
+    private static Comparator<DecoEntry> axisComparator(ChainAxis axis, Map<DecoEntry, Integer> orig) {
+        switch (axis) {
+            case METAL:  return Comparator.comparingInt(EntrySorter::metalIndex);
+            case COLOUR: return Comparator.comparingInt(EntrySorter::colourIndex);
+            case WOOD:   return Comparator.comparingInt(EntrySorter::woodIndex);
+            default:     return Comparator.comparingInt(e -> orig.getOrDefault(e, 0));
+        }
+    }
 
     /**
      * Build rainbow chains for entries.
@@ -257,6 +324,63 @@ public class ChainBuilder {
             pairs++;
         }
         return pairs;
+    }
+
+    /**
+     * on_use pairing, "by order": link each entry to the next in the current
+     * list order as a directed cycle (right-click advances), so 3+ states can
+     * be cycled. Independent of tool_modelswitch. Returns the number linked.
+     */
+    public static int pairByOrder(List<DecoEntry> entries) {
+        List<DecoEntry> chain = new ArrayList<>();
+        for (DecoEntry e : entries) {
+            if (getLinkTarget(e) != null) chain.add(e);
+        }
+        if (chain.size() < 2) return 0;
+        for (int i = 0; i < chain.size(); i++) {
+            String target = getLinkTarget(chain.get((i + 1) % chain.size()));
+            if (target != null) setOnUseLink(chain.get(i), target);
+        }
+        return chain.size();
+    }
+
+    private static final Pattern TRAILING_NUM = Pattern.compile("^(.*)_(\\d+)$");
+
+    /**
+     * on_use pairing, "by sequential": for numbered progressions like
+     * drawer_1_open_1 → drawer_1_open_2 → drawer_1_open_3, group entries by the
+     * base name (decoref with the trailing _&lt;number&gt; removed), then link each
+     * group in numeric order as a directed on_use cycle (…_3 wraps back to …_1).
+     * Entries with no trailing number, and singleton groups, are skipped.
+     * Returns the number of entries linked.
+     */
+    public static int pairSequential(List<DecoEntry> entries) {
+        Map<String, List<DecoEntry>> groups = new LinkedHashMap<>();
+        for (DecoEntry e : entries) {
+            String t = getLinkTarget(e);
+            if (t == null) continue;
+            Matcher m = TRAILING_NUM.matcher(t);
+            if (!m.matches()) continue;
+            groups.computeIfAbsent(m.group(1).toLowerCase(), k -> new ArrayList<>()).add(e);
+        }
+
+        int linked = 0;
+        for (List<DecoEntry> group : groups.values()) {
+            if (group.size() < 2) continue;
+            group.sort(Comparator.comparingInt(x -> trailingNumber(getLinkTarget(x))));
+            for (int i = 0; i < group.size(); i++) {
+                String target = getLinkTarget(group.get((i + 1) % group.size()));
+                if (target != null) setOnUseLink(group.get(i), target);
+            }
+            linked += group.size();
+        }
+        return linked;
+    }
+
+    private static int trailingNumber(String s) {
+        if (s == null) return Integer.MAX_VALUE;
+        Matcher m = TRAILING_NUM.matcher(s);
+        return m.matches() ? Integer.parseInt(m.group(2)) : Integer.MAX_VALUE;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.momo.decogen.update;
 
+import com.momo.decogen.ui.StageGuard;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.geometry.Insets;
@@ -37,7 +38,7 @@ public class UpdateChecker {
     private static final String RELEASES_API = "https://api.github.com/repos/%s/%s/releases/latest";
     private static final String RELEASES_PAGE = "https://github.com/%s/%s/releases/latest";
 
-    private static final String CURRENT_VERSION = "1.2.10";
+    private static final String CURRENT_VERSION = "1.3.0";
 
     public static void checkForUpdatesAsync() {
         checkForUpdatesAsync(null);
@@ -157,15 +158,7 @@ public class UpdateChecker {
             alert.getButtonTypes().setAll(openPageBtn, laterBtn);
         }
 
-        boolean wasMaximized = owner != null && owner.isMaximized();
-        boolean wasFullScreen = owner != null && owner.isFullScreen();
-        Optional<ButtonType> result = alert.showAndWait();
-        if (owner != null && (wasMaximized || wasFullScreen)) {
-            Platform.runLater(() -> {
-                if (wasFullScreen && !owner.isFullScreen()) owner.setFullScreen(true);
-                if (wasMaximized && !owner.isMaximized()) owner.setMaximized(true);
-            });
-        }
+        Optional<ButtonType> result = StageGuard.runPreserving(owner, alert::showAndWait);
         if (result.isEmpty()) return;
         ButtonType chosen = result.get();
         if (chosen == updateNowBtn && canSelfUpdate) {
@@ -240,7 +233,7 @@ public class UpdateChecker {
                     ButtonType openBtn = new ButtonType("Open Page");
                     ButtonType closeBtn = new ButtonType("Close", ButtonType.CANCEL.getButtonData());
                     err.getButtonTypes().setAll(openBtn, closeBtn);
-                    Optional<ButtonType> r = err.showAndWait();
+                    Optional<ButtonType> r = StageGuard.runPreserving(owner, err::showAndWait);
                     if (r.isPresent() && r.get() == openBtn) openReleasesPage();
                 });
             }

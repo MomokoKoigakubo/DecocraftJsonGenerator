@@ -26,6 +26,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,6 +74,10 @@ public class EditorPanel {
     private final Label lootLabel;
     private final TextField lootField;
     private final CheckBox displayableCheck;
+    private final CheckBox lightColorCheck;
+    private final Button lightColorSwatch;
+    private final VBox lightColorRow;
+    private Color lightColorValue = Color.WHITE;
 
     // Composite
     private final CheckBox compositeCheck;
@@ -199,10 +204,30 @@ public class EditorPanel {
             lootField.setManaged(n);
         });
         displayableCheck = darkCheck("Displayable (can place in display slots)");
+
+        // Light color: toggle reveals a colour swatch that opens a single-window
+        // hue/sat/brightness picker (ColorChooser). Emitted as light_color "#RRGGBB".
+        lightColorCheck = darkCheck("Light color (tint the emitted light)");
+        lightColorSwatch = new Button();
+        lightColorSwatch.setMaxWidth(Double.MAX_VALUE);
+        lightColorSwatch.setTooltip(TopBar.tooltip("Click to open the colour picker"));
+        lightColorSwatch.setOnAction(e ->
+                ColorChooser.show(controller.getPrimaryStage(), lightColorValue).ifPresent(this::setLightColor));
+        setLightColor(Color.WHITE);
+        lightColorRow = new VBox(2);
+        lightColorRow.getChildren().addAll(fieldLabel("Click the swatch to pick a colour"), lightColorSwatch);
+        lightColorRow.setVisible(false);
+        lightColorRow.setManaged(false);
+        lightColorCheck.selectedProperty().addListener((obs, o, n) -> {
+            lightColorRow.setVisible(n);
+            lightColorRow.setManaged(n);
+        });
+
         form.getChildren().addAll(
                 passableCheck, aboveWaterCheck, rotatableCheck,
                 hiddenCheck, lootLabel, lootField,
-                displayableCheck
+                displayableCheck,
+                lightColorCheck, lightColorRow
         );
 
         // --- Composite ---
@@ -499,6 +524,13 @@ public class EditorPanel {
         hiddenCheck.setSelected(Boolean.TRUE.equals(entry.getHidden()));
         lootField.setText(nn(entry.getLoot()));
         displayableCheck.setSelected(Boolean.TRUE.equals(entry.getDisplayable()));
+        if (entry.getLightColor() != null && !entry.getLightColor().isEmpty()) {
+            lightColorCheck.setSelected(true);
+            setLightColor(parseColorOr(entry.getLightColor(), Color.WHITE));
+        } else {
+            lightColorCheck.setSelected(false);
+            setLightColor(Color.WHITE);
+        }
 
         // Composite
         Composite comp = entry.getComposite();
@@ -600,6 +632,8 @@ public class EditorPanel {
         hiddenCheck.setSelected(false);
         lootField.setText("");
         displayableCheck.setSelected(false);
+        lightColorCheck.setSelected(false);
+        setLightColor(Color.WHITE);
 
         compositeCheck.setSelected(false);
         compositeModelField.setValue("");
@@ -691,6 +725,7 @@ public class EditorPanel {
             e.setLoot(nullIfEmpty(lootField.getText()));
         }
         e.setDisplayable(displayableCheck.isSelected() ? Boolean.TRUE : null);
+        e.setLightColor(lightColorCheck.isSelected() ? toHex(lightColorValue) : null);
 
         if (compositeCheck.isSelected()) {
             Composite c = new Composite();
@@ -808,6 +843,9 @@ public class EditorPanel {
         }
         if (!Objects.equals(proposed.getDisplayable(), loaded.getDisplayable())) {
             target.setDisplayable(proposed.getDisplayable());
+        }
+        if (!Objects.equals(proposed.getLightColor(), loaded.getLightColor())) {
+            target.setLightColor(proposed.getLightColor());
         }
 
         if (!History.jsonEquals(proposed.getComposite(), loaded.getComposite())) {
@@ -989,6 +1027,7 @@ public class EditorPanel {
             copy.setHidden(original.getHidden());
             copy.setLoot(original.getLoot());
             copy.setDisplayable(original.getDisplayable());
+            copy.setLightColor(original.getLightColor());
 
             // crafting color
             copy.setCraftingColor(original.getCraftingColor() != null
@@ -1124,6 +1163,36 @@ public class EditorPanel {
     }
 
     private static String nn(String s) { return s == null ? "" : s; }
+
+    /** Paint the swatch button with the chosen colour and show its hex. */
+    private void setLightColor(Color c) {
+        lightColorValue = (c != null) ? c : Color.WHITE;
+        String hex = toHex(lightColorValue);
+        lightColorSwatch.setText(hex);
+        boolean dark = lightColorValue.getBrightness() < 0.6;
+        lightColorSwatch.setStyle("-fx-background-color: " + hex + "; "
+                + "-fx-text-fill: " + (dark ? "white" : "black") + "; "
+                + "-fx-border-color: #888; -fx-border-width: 1; -fx-cursor: hand;");
+    }
+
+    /** JavaFX Color → "#RRGGBB" (uppercase, no alpha), matching Decocraft's hex form. */
+    private static String toHex(Color c) {
+        if (c == null) return null;
+        return String.format("#%02X%02X%02X",
+                (int) Math.round(c.getRed() * 255),
+                (int) Math.round(c.getGreen() * 255),
+                (int) Math.round(c.getBlue() * 255));
+    }
+
+    /** Parse "#RRGGBB" (or any Color.web form); fall back if malformed. */
+    private static Color parseColorOr(String hex, Color fallback) {
+        if (hex == null || hex.isEmpty()) return fallback;
+        try {
+            return Color.web(hex);
+        } catch (IllegalArgumentException ex) {
+            return fallback;
+        }
+    }
 
     private static String nullIfEmpty(String s) {
         return (s == null || s.isEmpty()) ? null : s;
