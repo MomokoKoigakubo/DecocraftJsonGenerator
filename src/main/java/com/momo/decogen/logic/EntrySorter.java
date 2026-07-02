@@ -22,22 +22,14 @@ public class EntrySorter {
     public static final List<String> METALS = List.of("silver", "gold", "rose_gold", "brass");
 
     /**
-     * Colour order used by the sort's Colour axis. Leads with black, green,
-     * white so the combined Metal→Colour sort reproduces the canonical finish
-     * order (Silver, Gold, Rose Gold, Brass, Black, Green, White); the rest of
-     * the rainbow follows for other items. Kept separate from
-     * {@link ColorUtils#RAINBOW} (which the chain builders still use).
+     * Colour order used by the sort's Colour axis: true rainbow order
+     * (red → … → blue → purple → pink), with the neutrals (white, cream,
+     * grays, black) trailing at the end. Metals are handled by the separate
+     * Metal axis, so a combined Metal→Colour sort still lists the finishes
+     * first, then the colours in rainbow order. Shares
+     * {@link ColorUtils#RAINBOW} directly.
      */
-    public static final List<String> SORT_COLOURS = buildSortColours();
-
-    private static List<String> buildSortColours() {
-        List<String> lead = List.of("black", "green", "white");
-        List<String> all = new ArrayList<>(lead);
-        for (String c : ColorUtils.RAINBOW) {
-            if (!lead.contains(c)) all.add(c);
-        }
-        return List.copyOf(all);
-    }
+    public static final List<String> SORT_COLOURS = ColorUtils.RAINBOW;
 
     private static final Pattern NUMBER = Pattern.compile("\\d+");
 

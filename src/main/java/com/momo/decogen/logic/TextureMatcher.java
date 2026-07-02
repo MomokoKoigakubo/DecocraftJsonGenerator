@@ -174,6 +174,18 @@ public class TextureMatcher {
         // name. The animated-block "_flipbook" token is not part of the color.
         String lower = stripFlipbook(textureName.toLowerCase());
 
+        // Leather finishes ("leather_black", "leather_brown") must be checked
+        // before the bare colour loop, otherwise "couch_set_leather_black" is
+        // truncated to "black" and collides with a plain "couch_set_black" —
+        // two different materials producing the same decoref. Sourced from
+        // ColorUtils.LEATHER so the matcher stays in sync with the rest of the
+        // app's colour handling.
+        for (String leather : ColorUtils.LEATHER) {
+            if (lower.endsWith(leather)) {
+                return leather;
+            }
+        }
+
         // Multi-token finishes ("rose_gold") must precede their single-token
         // suffix ("gold") so "..._rose_gold" isn't truncated to "gold".
         String[] knownColors = {

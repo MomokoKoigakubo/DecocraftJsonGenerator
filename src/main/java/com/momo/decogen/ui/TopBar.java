@@ -52,17 +52,11 @@ public class TopBar {
         autoMatchBtn.setOnAction(e -> controller.autoMatchTextures());
         autoMatchBtn.setTooltip(tooltip("Automatically assign unmatched textures to entries based on naming"));
 
-        Button normalizeBtn = new Button("Normalize\u2026");
-        normalizeBtn.setPrefHeight(35);
-        normalizeBtn.setStyle("-fx-background-color: #6c757d; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
-        normalizeBtn.setOnAction(e -> controller.normalizeRemoveWord());
-        normalizeBtn.setTooltip(tooltip("Pick a word and strip it from every entry's name, decoref, and material"));
-
-        Button addWordBtn = new Button("Add Word\u2026");
-        addWordBtn.setPrefHeight(35);
-        addWordBtn.setStyle("-fx-background-color: #6c757d; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
-        addWordBtn.setOnAction(e -> controller.normalizeAddWord());
-        addWordBtn.setTooltip(tooltip("Insert a word at a chosen position in every entry's name, decoref, and/or material"));
+        Button editWordsBtn = new Button("Edit Words\u2026");
+        editWordsBtn.setPrefHeight(35);
+        editWordsBtn.setStyle("-fx-background-color: #6c757d; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;");
+        editWordsBtn.setOnAction(e -> controller.openWordDialog());
+        editWordsBtn.setTooltip(tooltip("Add or remove a word across every entry's name, decoref, and/or material \u2014 pick Add / Remove in one dialog."));
 
         Button sortBtn = new Button("Sort\u2026");
         sortBtn.setPrefHeight(35);
@@ -70,16 +64,16 @@ public class TopBar {
         sortBtn.setTooltip(tooltip("Reorder entries by Metal, Colour, Number, and/or Alphabetical \u2014 combine axes in one dialog."));
         sortBtn.setOnAction(e -> controller.openSortDialog());
 
-        // Chain / Link by Order / Pair on_use share one style (they all build
-        // links). USE_PREF_SIZE stops the labels truncating in a crowded bar.
+        // Tool ModelSwitch / Link by Order / Pair on_use share one style (they
+        // all build links). USE_PREF_SIZE stops labels truncating in a crowded bar.
         String linkStyle = "-fx-background-color: #17a2b8; -fx-text-fill: white; -fx-font-size: 13px; -fx-cursor: hand;";
 
-        Button chainBtn = new Button("Chain…");
+        Button chainBtn = new Button("Tool ModelSwitch…");
         chainBtn.setPrefHeight(35);
         chainBtn.setMinWidth(Region.USE_PREF_SIZE);
         chainBtn.setStyle(linkStyle);
         chainBtn.setOnAction(e -> controller.openChainDialog());
-        chainBtn.setTooltip(tooltip("Build tool_modelswitch chains — drag to weight Colour / Wood / State pairs / list order and combine them."));
+        chainBtn.setTooltip(tooltip("Build tool_modelswitch cycles — drag to weight Colour / Wood / State pairs / list order and combine them."));
 
         Button orderLinkBtn = new Button("Link by Order");
         orderLinkBtn.setPrefHeight(35);
@@ -106,7 +100,7 @@ public class TopBar {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        root.getChildren().addAll(exportBtn, importBtn, autoMatchBtn, sortBtn, normalizeBtn, addWordBtn, chainBtn, orderLinkBtn, pairBtn, resetBtn, spacer, statsLabel);
+        root.getChildren().addAll(exportBtn, importBtn, autoMatchBtn, sortBtn, editWordsBtn, chainBtn, orderLinkBtn, pairBtn, resetBtn, spacer, statsLabel);
     }
 
     public HBox getRoot() {

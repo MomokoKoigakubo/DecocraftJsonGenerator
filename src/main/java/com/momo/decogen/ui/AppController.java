@@ -756,13 +756,13 @@ public class AppController {
      */
     public void openChainDialog() {
         if (entries.isEmpty()) {
-            showAlert("Nothing to Chain", "There are no entries to chain.");
+            showAlert("Nothing to Link", "There are no entries to link.");
             return;
         }
 
         ObservableList<AxisToggle> axes = FXCollections.observableArrayList(
                 new AxisToggle(ChainBuilder.ChainAxis.METAL, "Metal colour — silver, gold, rose gold, brass", true),
-                new AxisToggle(ChainBuilder.ChainAxis.COLOUR, "Colour — black, green, white, then rainbow", true),
+                new AxisToggle(ChainBuilder.ChainAxis.COLOUR, "Colour — rainbow order (red → … → neutrals last)", true),
                 new AxisToggle(ChainBuilder.ChainAxis.WOOD, "Wood type — birch, oak, cherry, palm, spruce, ebony", false),
                 new AxisToggle(ChainBuilder.ChainAxis.ORDER, "Current list order", false)
         );
@@ -773,7 +773,7 @@ public class AppController {
 
         Label hint = new Label("Drag to weight the axes (top applied first). Entries are cycled "
                 + "per model — and per open/closed state — sorted by all ticked axes combined "
-                + "(so Metal + Colour give one Silver→…→White cycle). Sort first, then chain by "
+                + "(so Metal + Colour give one Silver→…→Black cycle). Sort first, then link by "
                 + "\"Current list order\" to lock in a hand-arranged sequence. Open↔closed on_use "
                 + "linking is the separate \"Pair States\" button.");
         hint.setWrapText(true);
@@ -788,10 +788,10 @@ public class AppController {
             dialog.initOwner(primaryStage);
             dialog.initModality(Modality.WINDOW_MODAL);
         }
-        dialog.setTitle("Build Chain");
-        dialog.setHeaderText("Drag to weight the chain axes against each other.");
+        dialog.setTitle("Build Tool ModelSwitch");
+        dialog.setHeaderText("Drag to weight the tool_modelswitch axes against each other.");
         dialog.getDialogPane().setContent(content);
-        ButtonType buildBtn = new ButtonType("Build Chain", ButtonBar.ButtonData.OK_DONE);
+        ButtonType buildBtn = new ButtonType("Build", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(buildBtn, ButtonType.CANCEL);
 
         Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
@@ -804,7 +804,7 @@ public class AppController {
             }
         }
         if (orderingAxes.isEmpty()) {
-            showAlert("Build Chain", "Tick at least one axis to chain by.");
+            showAlert("Build Tool ModelSwitch", "Tick at least one axis to cycle by.");
             return;
         }
 
@@ -815,7 +815,7 @@ public class AppController {
         updateJsonPreview();
 
         String cycledBy = orderingAxes.stream().map(x -> x.name().toLowerCase()).reduce((x, y) -> x + " → " + y).orElse("");
-        showAlert("Chain Built", "Cycled per model by: " + cycledBy + " (tool_modelswitch).");
+        showAlert("Tool ModelSwitch Built", "Cycled per model by: " + cycledBy + " (tool_modelswitch).");
     }
 
     public void pairSelectedTexturesWithModel() {
@@ -1148,14 +1148,16 @@ public class AppController {
     // --- Normalize ---
 
     /**
-     * Open a dialog with (a) a dropdown of every distinct word found in entry
-     * names, decorefs, and materials, and (b) checkboxes to pick which of
-     * those fields to strip the word from. Material defaults to off because
-     * materials are usually shared textures.
+     * One dialog for both word edits, chosen by a Remove / Add radio at the top:
+     *   Remove — pick an existing word (dropdown of every token in the entries)
+     *            and strip it from the chosen fields.
+     *   Add    — type a word and insert it at start / end / between two words.
+     * The Name / Decoref / Material field checkboxes are shared by both modes;
+     * Material defaults off because materials are usually shared textures.
      */
-    public void normalizeRemoveWord() {
+    public void openWordDialog() {
         if (entries.isEmpty()) {
-            showAlert("Normalize", "No entries to normalize.");
+            showAlert("Edit Words", "No entries to modify.");
             return;
         }
 
@@ -1165,38 +1167,88 @@ public class AppController {
             collectTokens(tokens, e.getDecoref(), "_");
             collectTokens(tokens, e.getMaterial(), "_");
         }
-        if (tokens.isEmpty()) {
-            showAlert("Normalize", "Entries have no words to remove.");
-            return;
-        }
 
-        List<String> choices = new ArrayList<>(tokens);
+        // Mode toggle.
+        ToggleGroup modeGroup = new ToggleGroup();
+        RadioButton removeRadio = new RadioButton("Remove a word");
+        RadioButton addRadio = new RadioButton("Add a word");
+        removeRadio.setToggleGroup(modeGroup);
+        addRadio.setToggleGroup(modeGroup);
+        removeRadio.setSelected(true);
+        HBox modeRow = new HBox(16, removeRadio, addRadio);
 
+        // Remove controls.
         ComboBox<String> wordCombo = new ComboBox<>();
-        wordCombo.getItems().addAll(choices);
-        wordCombo.setValue(choices.get(0));
+        wordCombo.getItems().addAll(tokens);
+        if (!tokens.isEmpty()) wordCombo.setValue(wordCombo.getItems().get(0));
         wordCombo.setEditable(true);
         wordCombo.setMaxWidth(Double.MAX_VALUE);
+        VBox removeBox = new VBox(8, new Label("Word:"), wordCombo);
 
+        // Add controls.
+        TextField wordField = new TextField();
+        wordField.setPromptText("e.g., V2 or old");
+        wordField.setMaxWidth(Double.MAX_VALUE);
+
+        ComboBox<String> positionCombo = new ComboBox<>();
+        positionCombo.getItems().addAll("At start", "At end", "Between two words");
+        positionCombo.setValue("At start");
+        positionCombo.setMaxWidth(Double.MAX_VALUE);
+
+        TextField beforeField = new TextField();
+        beforeField.setPromptText("word before (e.g., closet)");
+        beforeField.setDisable(true);
+        TextField afterField = new TextField();
+        afterField.setPromptText("word after (e.g., white)");
+        afterField.setDisable(true);
+
+        positionCombo.valueProperty().addListener((obs, o, n) -> {
+            boolean between = "Between two words".equals(n);
+            beforeField.setDisable(!between);
+            afterField.setDisable(!between);
+        });
+
+        VBox addBox = new VBox(8,
+                new Label("Word to add:"), wordField,
+                new Label("Position:"), positionCombo,
+                new Label("Word before (for Between):"), beforeField,
+                new Label("Word after (for Between):"), afterField);
+
+        // Shared field-scope checkboxes.
         CheckBox nameCheck = new CheckBox("Name");
         nameCheck.setSelected(true);
         CheckBox decorefCheck = new CheckBox("Decoref");
         decorefCheck.setSelected(true);
         CheckBox materialCheck = new CheckBox("Material (shared texture — usually off)");
         materialCheck.setSelected(false);
+        Label fieldLabel = new Label("Strip from:");
 
-        VBox content = new VBox(8,
-                new Label("Word:"), wordCombo,
-                new Label("Strip from:"), nameCheck, decorefCheck, materialCheck);
+        // Show only the active mode's controls.
+        Runnable updateMode = () -> {
+            boolean remove = removeRadio.isSelected();
+            removeBox.setVisible(remove);
+            removeBox.setManaged(remove);
+            addBox.setVisible(!remove);
+            addBox.setManaged(!remove);
+            fieldLabel.setText(remove ? "Strip from:" : "Add to:");
+        };
+        modeGroup.selectedToggleProperty().addListener((obs, o, n) -> updateMode.run());
+        updateMode.run();
+
+        VBox content = new VBox(10,
+                modeRow, new Separator(),
+                removeBox, addBox,
+                fieldLabel, nameCheck, decorefCheck, materialCheck);
         content.setPadding(new Insets(10));
+        content.setPrefWidth(340);
 
         Dialog<ButtonType> dialog = new Dialog<>();
         if (primaryStage != null) {
             dialog.initOwner(primaryStage);
             dialog.initModality(Modality.WINDOW_MODAL);
         }
-        dialog.setTitle("Normalize");
-        dialog.setHeaderText("Pick a word and the fields to strip it from.");
+        dialog.setTitle("Edit Words");
+        dialog.setHeaderText("Add or remove a word across every entry.");
         dialog.getDialogPane().setContent(content);
 
         ButtonType applyBtn = new ButtonType("Apply", ButtonBar.ButtonData.OK_DONE);
@@ -1205,22 +1257,59 @@ public class AppController {
         Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
         if (result.isEmpty() || result.get() != applyBtn) return;
 
-        String word = wordCombo.getValue();
-        if (word == null) word = wordCombo.getEditor().getText();
-        if (word == null) return;
-        word = word.trim();
-        if (word.isEmpty()) return;
-
-        boolean stripName = nameCheck.isSelected();
-        boolean stripDecoref = decorefCheck.isSelected();
-        boolean stripMaterial = materialCheck.isSelected();
-
-        if (!stripName && !stripDecoref && !stripMaterial) {
-            showAlert("Normalize", "Pick at least one field to strip from.");
+        boolean onName = nameCheck.isSelected();
+        boolean onDecoref = decorefCheck.isSelected();
+        boolean onMaterial = materialCheck.isSelected();
+        if (!onName && !onDecoref && !onMaterial) {
+            showAlert("Edit Words", "Pick at least one field to change.");
             return;
         }
 
-        snapshot();
+        List<String> scopes = new ArrayList<>();
+        if (onName) scopes.add("name");
+        if (onDecoref) scopes.add("decoref");
+        if (onMaterial) scopes.add("material");
+
+        if (removeRadio.isSelected()) {
+            String word = wordCombo.getValue();
+            if (word == null) word = wordCombo.getEditor().getText();
+            if (word == null) return;
+            word = word.trim();
+            if (word.isEmpty()) return;
+
+            snapshot();
+            int modified = removeWordFromEntries(word, onName, onDecoref, onMaterial);
+            refreshEntryList();
+            showAlert("Edit Words", "Removed '" + word + "' from " + String.join(", ", scopes)
+                    + " on " + modified + " entries.");
+        } else {
+            String rawWord = wordField.getText();
+            if (rawWord == null) return;
+            rawWord = rawWord.trim();
+            if (rawWord.isEmpty()) return;
+
+            String pos = positionCombo.getValue();
+            String beforeWord = null;
+            String afterWord = null;
+            if ("Between two words".equals(pos)) {
+                beforeWord = beforeField.getText() != null ? beforeField.getText().trim() : "";
+                afterWord = afterField.getText() != null ? afterField.getText().trim() : "";
+                if (beforeWord.isEmpty() || afterWord.isEmpty()) {
+                    showAlert("Edit Words", "For 'Between two words', fill in both the word before and the word after.");
+                    return;
+                }
+            }
+
+            snapshot();
+            int modified = addWordToEntries(rawWord, pos, beforeWord, afterWord, onName, onDecoref, onMaterial);
+            refreshEntryList();
+            showAlert("Edit Words", "Added '" + rawWord + "' to " + String.join(", ", scopes)
+                    + " on " + modified + " entries.");
+        }
+    }
+
+    /** Strip {@code word} as a whole token from the selected fields. Returns entries changed. */
+    private int removeWordFromEntries(String word, boolean stripName, boolean stripDecoref, boolean stripMaterial) {
         int modified = 0;
         for (DecoEntry entry : entries) {
             boolean changed = false;
@@ -1247,107 +1336,12 @@ public class AppController {
             }
             if (changed) modified++;
         }
-
-        refreshEntryList();
-
-        List<String> scopes = new ArrayList<>();
-        if (stripName) scopes.add("name");
-        if (stripDecoref) scopes.add("decoref");
-        if (stripMaterial) scopes.add("material");
-        showAlert("Normalize", "Removed '" + word + "' from " + String.join(", ", scopes)
-                + " on " + modified + " entries.");
+        return modified;
     }
 
-    /**
-     * Open a dialog to insert a word into every entry at a chosen position
-     * (prepend, append, or a specific token index). Mirrors the field-scope
-     * checkboxes used by {@link #normalizeRemoveWord()}.
-     */
-    public void normalizeAddWord() {
-        if (entries.isEmpty()) {
-            showAlert("Add Word", "No entries to modify.");
-            return;
-        }
-
-        TextField wordField = new TextField();
-        wordField.setPromptText("e.g., V2 or old");
-        wordField.setMaxWidth(Double.MAX_VALUE);
-
-        ComboBox<String> positionCombo = new ComboBox<>();
-        positionCombo.getItems().addAll("At start", "At end", "Between two words");
-        positionCombo.setValue("At start");
-        positionCombo.setMaxWidth(Double.MAX_VALUE);
-
-        TextField beforeField = new TextField();
-        beforeField.setPromptText("word before (e.g., closet)");
-        beforeField.setDisable(true);
-        TextField afterField = new TextField();
-        afterField.setPromptText("word after (e.g., white)");
-        afterField.setDisable(true);
-
-        positionCombo.valueProperty().addListener((obs, o, n) -> {
-            boolean between = "Between two words".equals(n);
-            beforeField.setDisable(!between);
-            afterField.setDisable(!between);
-        });
-
-        CheckBox nameCheck = new CheckBox("Name");
-        nameCheck.setSelected(true);
-        CheckBox decorefCheck = new CheckBox("Decoref");
-        decorefCheck.setSelected(true);
-        CheckBox materialCheck = new CheckBox("Material (shared texture — usually off)");
-        materialCheck.setSelected(false);
-
-        VBox content = new VBox(8,
-                new Label("Word to add:"), wordField,
-                new Label("Position:"), positionCombo,
-                new Label("Word before (for Between):"), beforeField,
-                new Label("Word after (for Between):"), afterField,
-                new Label("Add to:"), nameCheck, decorefCheck, materialCheck);
-        content.setPadding(new Insets(10));
-
-        Dialog<ButtonType> dialog = new Dialog<>();
-        if (primaryStage != null) {
-            dialog.initOwner(primaryStage);
-            dialog.initModality(Modality.WINDOW_MODAL);
-        }
-        dialog.setTitle("Add Word");
-        dialog.setHeaderText("Pick a word and where to insert it in every entry.");
-        dialog.getDialogPane().setContent(content);
-
-        ButtonType applyBtn = new ButtonType("Apply", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(applyBtn, ButtonType.CANCEL);
-
-        Optional<ButtonType> result = runPreservingStage(dialog::showAndWait);
-        if (result.isEmpty() || result.get() != applyBtn) return;
-
-        String rawWord = wordField.getText();
-        if (rawWord == null) return;
-        rawWord = rawWord.trim();
-        if (rawWord.isEmpty()) return;
-
-        boolean addName = nameCheck.isSelected();
-        boolean addDecoref = decorefCheck.isSelected();
-        boolean addMaterial = materialCheck.isSelected();
-
-        if (!addName && !addDecoref && !addMaterial) {
-            showAlert("Add Word", "Pick at least one field to add to.");
-            return;
-        }
-
-        String pos = positionCombo.getValue();
-        String beforeWord = null;
-        String afterWord = null;
-        if ("Between two words".equals(pos)) {
-            beforeWord = beforeField.getText() != null ? beforeField.getText().trim() : "";
-            afterWord = afterField.getText() != null ? afterField.getText().trim() : "";
-            if (beforeWord.isEmpty() || afterWord.isEmpty()) {
-                showAlert("Add Word", "For 'Between two words', fill in both the word before and the word after.");
-                return;
-            }
-        }
-
-        snapshot();
+    /** Insert {@code rawWord} at {@code pos} into the selected fields. Returns entries changed. */
+    private int addWordToEntries(String rawWord, String pos, String beforeWord, String afterWord,
+                                 boolean addName, boolean addDecoref, boolean addMaterial) {
         // Name keeps original casing; decoref/material are always snake_case lowercase.
         String nameWord = rawWord;
         String idWord = rawWord.toLowerCase().replaceAll("\\s+", "_");
@@ -1369,15 +1363,7 @@ public class AppController {
             }
             if (changed) modified++;
         }
-
-        refreshEntryList();
-
-        List<String> scopes = new ArrayList<>();
-        if (addName) scopes.add("name");
-        if (addDecoref) scopes.add("decoref");
-        if (addMaterial) scopes.add("material");
-        showAlert("Add Word", "Added '" + rawWord + "' to " + String.join(", ", scopes)
-                + " on " + modified + " entries.");
+        return modified;
     }
 
     /**
