@@ -73,6 +73,9 @@ public final class ColorChooser {
         TextField hexField = new TextField();
         hexField.setPrefColumnCount(8);
 
+        // Guard so programmatic setText() from render() doesn't re-parse itself.
+        final boolean[] syncing = {false};
+
         Runnable render = () -> {
             base.setFill(Color.hsb(hsb[0], 1, 1));
             thumb.setCenterX(hsb[1] * W);
@@ -80,7 +83,31 @@ public final class ColorChooser {
             hueThumb.setX(hsb[0] / 360.0 * W - 1.5);
             Color c = Color.hsb(hsb[0], hsb[1], hsb[2]);
             preview.setFill(c);
-            if (!hexField.isFocused()) hexField.setText(toHex(c));
+            if (!hexField.isFocused()) {
+                syncing[0] = true;
+                try {
+                    hexField.setText(toHex(c));
+                    hexField.setStyle("");
+                } finally {
+                    syncing[0] = false;
+                }
+            }
+        };
+
+        // Apply whatever is in the hex field to the picker. Returns true if it
+        // parsed. Accepts "#RRGGBB", "RRGGBB", "#RGB", "RGB" and "0xRRGGBB".
+        java.util.function.BooleanSupplier applyHex = () -> {
+            Color c = parseHex(hexField.getText());
+            if (c == null) {
+                hexField.setStyle("-fx-border-color: #e06c75; -fx-border-width: 1.5;");
+                return false;
+            }
+            hexField.setStyle("");
+            hsb[0] = c.getHue();
+            hsb[1] = c.getSaturation();
+            hsb[2] = c.getBrightness();
+            render.run();
+            return true;
         };
 
         field.addEventHandler(MouseEvent.MOUSE_PRESSED, e -> pickField(e, hsb, render));
@@ -88,16 +115,22 @@ public final class ColorChooser {
         huePane.addEventHandler(MouseEvent.MOUSE_PRESSED, e -> pickHue(e, hsb, render));
         huePane.addEventHandler(MouseEvent.MOUSE_DRAGGED, e -> pickHue(e, hsb, render));
 
+        // Live: update the picker as the user types (no Enter needed). This is
+        // what makes "type a code, click Select" work — previously the typed
+        // value was only read on Enter, so clicking Select returned the old
+        // colour. Also commit on Enter and on focus loss.
+        hexField.textProperty().addListener((obs, o, n) -> {
+            if (syncing[0]) return;
+            if (parseHex(n) != null) applyHex.getAsBoolean();
+            else hexField.setStyle(n == null || n.trim().isEmpty() ? ""
+                    : "-fx-border-color: #e06c75; -fx-border-width: 1.5;");
+        });
         hexField.setOnAction(e -> {
-            try {
-                Color c = Color.web(hexField.getText().trim());
-                hsb[0] = c.getHue();
-                hsb[1] = c.getSaturation();
-                hsb[2] = c.getBrightness();
-                render.run();
-            } catch (IllegalArgumentException ignore) {
-                render.run();
-            }
+            if (!applyHex.getAsBoolean()) render.run(); // invalid: revert to current colour
+            e.consume();
+        });
+        hexField.focusedProperty().addListener((obs, was, is) -> {
+            if (was && !is && !applyHex.getAsBoolean()) render.run();
         });
 
         HBox previewRow = new HBox(8, preview, hexField);
@@ -119,9 +152,34 @@ public final class ColorChooser {
 
         Optional<ButtonType> result = StageGuard.runPreserving(owner, dialog::showAndWait);
         if (result.isPresent() && result.get() == selectBtn) {
+            // The hex field is the final authority if it holds a valid code:
+            // covers "typed a code, clicked Select" even if no focus-lost event
+            // fired before the dialog closed (seen on some Linux window managers).
+            Color typed = parseHex(hexField.getText());
+            if (typed != null) return Optional.of(typed);
             return Optional.of(Color.hsb(hsb[0], hsb[1], hsb[2]));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Lenient hex parser: "#RRGGBB", "RRGGBB", "#RGB", "RGB", "0xRRGGBB", any
+     * case, surrounding whitespace ignored. Returns null if it isn't one of those.
+     */
+    static Color parseHex(String text) {
+        if (text == null) return null;
+        String t = text.trim();
+        if (t.startsWith("#")) t = t.substring(1);
+        else if (t.startsWith("0x") || t.startsWith("0X")) t = t.substring(2);
+        if (t.length() == 3) {
+            t = "" + t.charAt(0) + t.charAt(0) + t.charAt(1) + t.charAt(1) + t.charAt(2) + t.charAt(2);
+        }
+        if (t.length() != 6) return null;
+        for (int i = 0; i < 6; i++) {
+            if (Character.digit(t.charAt(i), 16) < 0) return null;
+        }
+        int rgb = Integer.parseInt(t, 16);
+        return Color.rgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
     }
 
     private static void pickField(MouseEvent e, double[] hsb, Runnable render) {
