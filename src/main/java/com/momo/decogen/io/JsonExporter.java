@@ -66,6 +66,7 @@ public class JsonExporter {
         if (entry.getLightColor() != null && !entry.getLightColor().isEmpty()) {
             map.put("light_color", entry.getLightColor());
         }
+        if (entry.getEmissive() != null) map.put("emissive", entry.getEmissive());
 
         // Block type & behavior (11-17)
         if (entry.getType() != null) map.put("type", entry.getType());
@@ -178,6 +179,7 @@ public class JsonExporter {
         if (a.getStorage() != null && a.getStorage().length > 0) {
             map.put("storage", a.getStorage());
         }
+        if (a.togglesLight()) map.put("toggle_light", true);
 
         return map;
     }

@@ -11,6 +11,8 @@ import java.util.List;
  *   - animations : list of animation state transitions
  *   - sounds   : list of animation-synced sounds
  *   - storage  : inventory size [columns, rows]
+ *   - toggle_light : on_use only; switches a lamp on and off in place (its "lit" block
+ *                    state) instead of swapping to a separate "_on" block. Needs a script light.
  */
 public class Action {
     private String link;
@@ -18,6 +20,7 @@ public class Action {
     private List<AnimationPair> animations;
     private List<SoundPair> sounds;
     private int[] storage;
+    private Boolean toggleLight;
 
     public Action() {}
 
@@ -35,6 +38,13 @@ public class Action {
 
     public int[] getStorage() { return storage; }
     public void setStorage(int[] storage) { this.storage = storage; }
+
+    public Boolean getToggleLight() { return toggleLight; }
+    public void setToggleLight(Boolean toggleLight) { this.toggleLight = toggleLight; }
+
+    public boolean togglesLight() {
+        return Boolean.TRUE.equals(toggleLight);
+    }
 
     public void addAnimation(String from, String to) {
         if (animations == null) animations = new ArrayList<>();
@@ -54,6 +64,7 @@ public class Action {
                 && (sound == null || sound.isEmpty())
                 && !hasAnimations()
                 && !hasSounds()
-                && (storage == null || storage.length == 0);
+                && (storage == null || storage.length == 0)
+                && !togglesLight();
     }
 }

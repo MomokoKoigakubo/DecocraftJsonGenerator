@@ -40,7 +40,15 @@ public class ActionEditor {
     private final Spinner<Integer> storageRowsSpinner;
     private final HBox storageRow;
 
+    /** on_use only: switch the lamp on and off in place; null on every other action. */
+    private final CheckBox toggleLightCheck;
+
     public ActionEditor(String actionKey) {
+        this(actionKey, false);
+    }
+
+    /** @param lightToggle offer "Toggle light" (Decocraft reads it from on_use only) */
+    public ActionEditor(String actionKey, boolean lightToggle) {
         root = new TitledPane();
         root.setText(actionKey);
         root.setExpanded(false);
@@ -110,6 +118,17 @@ public class ActionEditor {
             }
         }
 
+        if (lightToggle) {
+            toggleLightCheck = new CheckBox("Toggle light (lamp switches on/off in place)");
+            toggleLightCheck.setStyle("-fx-text-fill: #dcddde;");
+            toggleLightCheck.setTooltip(TopBar.tooltip("Right click turns the lamp on and off: one block with a lit state, "
+                    + "placed off. Needs Light emission set in Script. Replaces the old pair of an unlit and a hidden "
+                    + "\"_on\" entry linked to each other, so leave Link empty."));
+            contentBox.getChildren().add(toggleLightCheck);
+        } else {
+            toggleLightCheck = null;
+        }
+
         contentBox.getChildren().addAll(
                 linkLabel, linkDropdown,
                 soundLabel, soundField,
@@ -148,6 +167,8 @@ public class ActionEditor {
         AnimationPairBox.setPairs(animationsBox, action.getAnimations());
         SoundPairBox.setPairs(soundsBox, action.getSounds());
 
+        if (toggleLightCheck != null) toggleLightCheck.setSelected(action.togglesLight());
+
         int[] storage = action.getStorage();
         if (storage != null && storage.length >= 2) {
             storageCheck.setSelected(true);
@@ -185,6 +206,8 @@ public class ActionEditor {
             a.setStorage(new int[]{storageColsSpinner.getValue(), storageRowsSpinner.getValue()});
         }
 
+        if (toggleLightCheck != null && toggleLightCheck.isSelected()) a.setToggleLight(Boolean.TRUE);
+
         return a.isEmpty() ? null : a;
     }
 
@@ -195,6 +218,7 @@ public class ActionEditor {
         AnimationPairBox.clear(animationsBox);
         SoundPairBox.clear(soundsBox);
         storageCheck.setSelected(false);
+        if (toggleLightCheck != null) toggleLightCheck.setSelected(false);
         storageColsSpinner.getValueFactory().setValue(3);
         storageRowsSpinner.getValueFactory().setValue(3);
     }

@@ -24,6 +24,7 @@ public class DecoEntry {
     private int[] craftingColor = {0, 0, 0};
     private String defaultAnimation;
     private String lightColor;   // hex tint (#RRGGBB) for the block's emitted light
+    private Boolean emissive;    // PBR glow: false = off, true = on, null = automatic
 
     // block type & behavior
     private String type;
@@ -95,6 +96,9 @@ public class DecoEntry {
 
     public String getDefaultAnimation() { return defaultAnimation; }
     public void setDefaultAnimation(String defaultAnimation) { this.defaultAnimation = defaultAnimation; }
+
+    public Boolean getEmissive() { return emissive; }
+    public void setEmissive(Boolean emissive) { this.emissive = emissive; }
 
     public String getLightColor() { return lightColor; }
     public void setLightColor(String lightColor) { this.lightColor = lightColor; }

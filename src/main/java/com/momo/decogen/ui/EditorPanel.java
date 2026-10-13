@@ -349,7 +349,7 @@ public class EditorPanel {
 
         // Action editors
         form.getChildren().add(subHeader("Actions"));
-        onUseEditor = new ActionEditor("on_use");
+        onUseEditor = new ActionEditor("on_use", true);
         shiftOnUseEditor = new ActionEditor("shift_on_use");
         addedEditor = new ActionEditor("added");
         triggerEditor = new ActionEditor("trigger");
@@ -726,6 +726,8 @@ public class EditorPanel {
         }
         e.setDisplayable(displayableCheck.isSelected() ? Boolean.TRUE : null);
         e.setLightColor(lightColorCheck.isSelected() ? toHex(lightColorValue) : null);
+        // not edited here: an imported "emissive" is carried through unchanged
+        e.setEmissive(loadedSnapshot != null ? loadedSnapshot.getEmissive() : null);
 
         if (compositeCheck.isSelected()) {
             Composite c = new Composite();
@@ -847,6 +849,9 @@ public class EditorPanel {
         if (!Objects.equals(proposed.getLightColor(), loaded.getLightColor())) {
             target.setLightColor(proposed.getLightColor());
         }
+        if (!Objects.equals(proposed.getEmissive(), loaded.getEmissive())) {
+            target.setEmissive(proposed.getEmissive());
+        }
 
         if (!History.jsonEquals(proposed.getComposite(), loaded.getComposite())) {
             target.setComposite(History.deepCopy(proposed.getComposite(), Composite.class));
@@ -953,8 +958,11 @@ public class EditorPanel {
         boolean animsChanged = !History.jsonEquals(pAnims, lAnims);
         boolean soundsChanged = !History.jsonEquals(pSounds, lSounds);
         boolean storageChanged = !Arrays.equals(pStorage, lStorage);
+        Boolean pToggle = proposed != null ? proposed.getToggleLight() : null;
+        Boolean lToggle = loaded != null ? loaded.getToggleLight() : null;
+        boolean toggleChanged = !Objects.equals(pToggle, lToggle);
 
-        if (!(linkChanged || soundChanged || animsChanged || soundsChanged || storageChanged)) {
+        if (!(linkChanged || soundChanged || animsChanged || soundsChanged || storageChanged || toggleChanged)) {
             return;
         }
 
@@ -968,6 +976,7 @@ public class EditorPanel {
         if (animsChanged) targetAction.setAnimations(cloneAnimationPairs(pAnims));
         if (soundsChanged) targetAction.setSounds(cloneSoundPairs(pSounds));
         if (storageChanged) targetAction.setStorage(pStorage != null ? pStorage.clone() : null);
+        if (toggleChanged) targetAction.setToggleLight(pToggle);
 
         if (targetAction.isEmpty()) setter.accept(null);
     }
