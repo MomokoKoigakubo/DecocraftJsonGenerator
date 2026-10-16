@@ -92,7 +92,7 @@ Every entry lives inside a "models" array in a config JSON file.
     "name"       - Display name shown in game (String)
     "material"   - Unique texture/material identifier (String)
     "decoref"    - Unique block ID, used for registration (String)
-    "tabs"       - Creative tab group name (String), e.g. "clutter", "lighting", "hobbies"
+    "tabs"       - Creative tab group names (String[]), e.g. ["clutter"] or ["kitchen", "food"]
     "crafting_color" - RGB color array for crafting display (float[3])
 
 ## Model and Rendering
@@ -124,7 +124,7 @@ Every entry lives inside a "models" array in a config JSON file.
       "model": "table_lamp",
       "material": "table_lamp_white",
       "scale": 1.0,
-      "tabs": "lighting",
+      "tabs": ["lighting"],
       "crafting_color": [200, 200, 200],
       "decoref": "table_lamp_white"
     }
@@ -243,7 +243,7 @@ Use animation_end to automatically transition when an animation completes:
       "model": "cuckoo_clock",
       "material": "cuckoo_clock",
       "scale": 1.0,
-      "tabs": "wall_decor",
+      "tabs": ["wall_decor"],
       "type": "animated",
       "default_animation": "animation.cuckoo_clock.idle",
       "script": {
@@ -316,7 +316,7 @@ They use type "chain" and do NOT have a model field.
       "type": "chain",
       "material": "rose_vine",
       "decoref": "rose_vine",
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "crafting_color": [34, 120, 50],
       "chain_models": ["rose_vine"]
     }
@@ -343,7 +343,7 @@ The pattern field controls how models repeat for longer chains.
       "type": "chain",
       "material": "wire",
       "decoref": "wire",
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "crafting_color": [50, 50, 50],
       "chain_models": ["wire"]
     }
@@ -357,7 +357,7 @@ Chains can have animated textures using flipbook data.
       "type": "chain",
       "material": "wire_lights_test",
       "decoref": "wire_lights_test",
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "crafting_color": [255, 200, 50],
       "chain_models": ["wire", "wire_lights_test", "wire"],
       "flipbook": {
@@ -377,7 +377,7 @@ chain_materials array.
       "type": "chain",
       "material": "vine_green",
       "decoref": "mixed_vine",
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "crafting_color": [40, 150, 40],
       "chain_models": ["vine_segment", "vine_flower", "vine_segment"],
       "chain_materials": ["vine_green", "vine_flower_pink", "vine_green"],
@@ -507,7 +507,7 @@ grows_into is an array of structure file names (random selection).
       "model": "example_sapling",
       "material": "example_sapling",
       "scale": 1,
-      "tabs": "trees",
+      "tabs": ["trees"],
       "crafting_color": [50.0, 205.0, 50.0],
       "decoref": "test_sapling",
       "grows_into": ["test_struct"]
@@ -624,7 +624,7 @@ Only items with this flag can be placed into display slots.
       "model": "alarm_clock",
       "material": "alarm_clock_red",
       "scale": 1.0,
-      "tabs": "clutter",
+      "tabs": ["clutter"],
       "crafting_color": [200, 40, 40],
       "decoref": "alarm_clock_red",
       "displayable": true
@@ -661,7 +661,7 @@ Follows the same pattern as sitting_node and sleeping_node:
       "model": "day_bed",
       "material": "day_bed_white",
       "type": "bed",
-      "tabs": "bedroom",
+      "tabs": ["bedroom"],
       "shape": "day_bed_hb",
       "crafting_color": [240, 240, 240],
       "decoref": "day_bed_white"
@@ -678,7 +678,7 @@ advancing time. Respawn point is set when sleeping.
       "model": "chair",
       "material": "chair_oak",
       "type": "seat",
-      "tabs": "seating",
+      "tabs": ["seating"],
       "crafting_color": [150, 120, 80],
       "decoref": "chair_oak"
     }
@@ -742,7 +742,7 @@ A basic block with no special behavior.
       "model": "vase",
       "material": "vase_blue",
       "scale": 1.0,
-      "tabs": "clutter",
+      "tabs": ["clutter"],
       "crafting_color": [60, 80, 200],
       "decoref": "vase_blue"
     }
@@ -758,7 +758,7 @@ Glass, bottles, or anything see through.
       "material": "wine_glass",
       "scale": 1.0,
       "transparency": true,
-      "tabs": "food",
+      "tabs": ["food"],
       "crafting_color": [200, 200, 220],
       "decoref": "wine_glass"
     }
@@ -774,7 +774,7 @@ Use a shape ID to define a custom hitbox from a bounding box bbmodel file.
       "material": "filing_cabinet_birch",
       "scale": 1.0,
       "shape": "filing_cabinet_birch",
-      "tabs": "storage",
+      "tabs": ["storage"],
       "crafting_color": [180, 150, 100],
       "decoref": "filing_cabinet_birch"
     }
@@ -789,7 +789,7 @@ Players can walk through this block.
       "model": "flower_pot",
       "material": "flower_pot_red",
       "passable": true,
-      "tabs": "clutter",
+      "tabs": ["clutter"],
       "crafting_color": [180, 60, 40],
       "decoref": "flower_pot_red"
     }
@@ -805,7 +805,7 @@ Block that floats on water surfaces.
       "material": "lily_pad",
       "type": "water",
       "above_water": true,
-      "tabs": "clutter",
+      "tabs": ["clutter"],
       "crafting_color": [40, 150, 40],
       "decoref": "lily_pad_deco"
     }
@@ -819,7 +819,7 @@ Block that gives off light using the script light field.
       "name": "Candle White",
       "model": "candle",
       "material": "candle_white",
-      "tabs": "lighting",
+      "tabs": ["lighting"],
       "script": {
         "light": 12
       },
@@ -839,7 +839,7 @@ Off state (visible in creative tab):
       "name": "Table Lamp White",
       "model": "table_lamp",
       "material": "table_lamp_white",
-      "tabs": "lighting",
+      "tabs": ["lighting"],
       "script": {
         "on_use": { "link": "table_lamp_white_on" }
       },
@@ -871,7 +871,7 @@ A block that cycles through animations when right clicked.
       "model": "newtons_cradle",
       "material": "newtons_cradle",
       "scale": 1.0,
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "type": "animated",
       "default_animation": "animation.newtons_cradle.idle",
       "script": {
@@ -896,7 +896,7 @@ Sounds that play each time an animation loops.
       "model": "cuckoo_clock",
       "material": "cuckoo_clock",
       "scale": 1.0,
-      "tabs": "wall_decor",
+      "tabs": ["wall_decor"],
       "type": "animated",
       "default_animation": "animation.cuckoo_clock.idle",
       "script": {
@@ -932,7 +932,7 @@ Using "any_other" to randomly pick a different animation each cycle.
       "model": "lava_lamp",
       "material": "lava_lamp_red",
       "scale": 1.0,
-      "tabs": "lighting",
+      "tabs": ["lighting"],
       "type": "animated",
       "default_animation": "animation.lava_lamp.idle_1",
       "script": {
@@ -957,7 +957,7 @@ A record player block that plays music discs.
       "model": "jukebox",
       "material": "jukebox",
       "scale": 1.0,
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "type": "jukebox",
       "default_animation": "animation.jukebox_idle",
       "script": {
@@ -983,7 +983,7 @@ A jukebox with a separate animated disc model on top.
       "material": "jukebox_deluxe",
       "scale": 1.0,
       "transparency": true,
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "type": "jukebox",
       "default_animation": "animation.jukebox_idle",
       "composite": {
@@ -1011,7 +1011,7 @@ A block with a small inventory (chest, drawer, etc).
       "model": "drawer",
       "material": "drawer_oak",
       "scale": 1.0,
-      "tabs": "storage",
+      "tabs": ["storage"],
       "script": {
         "on_use": {
           "storage": [3, 3]
@@ -1031,7 +1031,7 @@ A block with a large inventory.
       "model": "closet",
       "material": "closet_oak",
       "scale": 1.0,
-      "tabs": "storage",
+      "tabs": ["storage"],
       "script": {
         "on_use": {
           "storage": [9, 6]
@@ -1052,7 +1052,7 @@ Base doorbell:
       "name": "Doorbell White",
       "model": "doorbell",
       "material": "doorbell_white",
-      "tabs": "wall_decor",
+      "tabs": ["wall_decor"],
       "script": {
         "on_use": {
           "link": "doorbell_pressed_white",
@@ -1087,7 +1087,7 @@ the decobrush tool. Each links to the next in a loop.
       "model": "painting_1",
       "material": "painting_1_a",
       "scale": 1.0,
-      "tabs": "paintings",
+      "tabs": ["paintings"],
       "type": "underlayer",
       "crafting_color": [35, 30, 25],
       "decoref": "painting_1_a",
@@ -1100,7 +1100,7 @@ the decobrush tool. Each links to the next in a loop.
       "model": "painting_1",
       "material": "painting_1_b",
       "scale": 1.0,
-      "tabs": "paintings",
+      "tabs": ["paintings"],
       "type": "underlayer",
       "crafting_color": [35, 32, 25],
       "decoref": "painting_1_b",
@@ -1117,7 +1117,7 @@ the decobrush tool. Each links to the next in a loop.
       "model": "day_bed",
       "material": "day_bed_white",
       "type": "bed",
-      "tabs": "bedroom",
+      "tabs": ["bedroom"],
       "shape": "day_bed_hb",
       "crafting_color": [240, 240, 240],
       "decoref": "day_bed_white"
@@ -1131,7 +1131,7 @@ the decobrush tool. Each links to the next in a loop.
       "model": "chair",
       "material": "chair_oak",
       "type": "seat",
-      "tabs": "seating",
+      "tabs": ["seating"],
       "crafting_color": [150, 120, 80],
       "decoref": "chair_oak"
     }
@@ -1144,7 +1144,7 @@ the decobrush tool. Each links to the next in a loop.
       "type": "chain",
       "material": "rose_vine",
       "decoref": "rose_vine",
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "crafting_color": [34, 120, 50],
       "chain_models": ["rose_vine"]
     }
@@ -1159,7 +1159,7 @@ A chain with alternating models, animated texture, and light emission.
       "type": "chain",
       "material": "wire_lights_test",
       "decoref": "wire_lights_test",
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "crafting_color": [255, 200, 50],
       "chain_models": ["wire", "wire_lights_test", "wire"],
       "flipbook": {
@@ -1179,7 +1179,7 @@ A block with an animated screen texture.
       "model": "tv_small",
       "material": "tv_small_static_flipbook",
       "scale": 1.0,
-      "tabs": "hobbies",
+      "tabs": ["hobbies"],
       "flipbook": {
         "frametime": 4,
         "images": 4
@@ -1198,7 +1198,7 @@ A fire effect using animated textures.
       "model": "firepit",
       "material": "firepit",
       "scale": 1.0,
-      "tabs": "seasonal",
+      "tabs": ["seasonal"],
       "script": {
         "light": 15
       },
@@ -1220,7 +1220,7 @@ A sapling that grows into a random structure over time.
       "model": "example_sapling",
       "material": "example_sapling",
       "scale": 1,
-      "tabs": "trees",
+      "tabs": ["trees"],
       "crafting_color": [50, 205, 50],
       "decoref": "test_sapling",
       "grows_into": ["test_struct", "test_struct_2"]
@@ -1236,7 +1236,7 @@ Grows immediately when placed instead of over time.
       "model": "magic_sapling",
       "material": "magic_sapling",
       "scale": 1,
-      "tabs": "trees",
+      "tabs": ["trees"],
       "crafting_color": [100, 50, 200],
       "decoref": "magic_sapling",
       "grows_into": ["magic_tree"],
@@ -1254,7 +1254,7 @@ The locator in the BBModel must be named to match the particle file.
       "model": "firepit",
       "material": "firepit",
       "scale": 1.0,
-      "tabs": "seasonal",
+      "tabs": ["seasonal"],
       "script": {
         "light": 15
       },
@@ -1295,7 +1295,7 @@ A block that drops a different item when broken.
       "material": "decobench",
       "scale": 1.0,
       "type": "decobench",
-      "tabs": "clutter",
+      "tabs": ["clutter"],
       "crafting_color": [120, 90, 60],
       "decoref": "decobench"
     }
@@ -1309,7 +1309,7 @@ A block that drops a different item when broken.
       "material": "decomposer",
       "scale": 1.0,
       "type": "decomposer",
-      "tabs": "clutter",
+      "tabs": ["clutter"],
       "crafting_color": [80, 100, 60],
       "decoref": "decomposer"
     }
@@ -1325,7 +1325,7 @@ with locators. No special JSON fields needed on the block entry.
       "model": "bamboo_table",
       "material": "bamboo_table_green",
       "scale": 1.0,
-      "tabs": "seasonal",
+      "tabs": ["seasonal"],
       "crafting_color": [34.94, 46.94, 18.1],
       "decoref": "bamboo_table_green"
     }
@@ -1343,7 +1343,7 @@ An item that can be placed into display slots.
       "model": "alarm_clock",
       "material": "alarm_clock_red",
       "scale": 1.0,
-      "tabs": "clutter",
+      "tabs": ["clutter"],
       "crafting_color": [200, 40, 40],
       "decoref": "alarm_clock_red",
       "displayable": true

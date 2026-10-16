@@ -55,7 +55,7 @@ public class EntryBuilder {
                 entry.setName(toDisplayName(modelName));
                 entry.setModel(modelName);
                 entry.setMaterial(null);
-                entry.setTabs(tab);
+                entry.setTabs(new ArrayList<>(List.of(tab)));
                 entry.autoDetectType(model);
                 entries.add(entry);
             } else {
@@ -64,7 +64,7 @@ public class EntryBuilder {
                     entry.setName(toDisplayName(texture));
                     entry.setModel(modelName);
                     entry.setMaterial(texture);
-                    entry.setTabs(tab);
+                    entry.setTabs(new ArrayList<>(List.of(tab)));
                     entry.autoDetectType(model);
                     entries.add(entry);
                 }

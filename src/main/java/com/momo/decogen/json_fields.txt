@@ -21,7 +21,7 @@ Entry - model & rendering
 
 
 Entry - tab & display
-  9. tabs              - which creative tab to show up in
+  9. tabs              - which creative tab(s) to show up in (array of strings, e.g. ["kitchen", "food"])
  10. default_animation - which animation plays by default (animated blocks only)
  10a. light_color      - hex tint (#RRGGBB) for the block's emitted light; pairs with script.light
 

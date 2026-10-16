@@ -3,7 +3,9 @@ package com.momo.decogen.logic;
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.momo.decogen.model.DecoEntry;
@@ -37,10 +39,10 @@ public class JsonImporter {
         List<DecoEntry> out = new ArrayList<>();
         if (root.isJsonArray()) {
             for (JsonElement el : root.getAsJsonArray()) {
-                if (el.isJsonObject()) out.add(GSON.fromJson(el, DecoEntry.class));
+                if (el.isJsonObject()) out.add(parseEntry(el.getAsJsonObject()));
             }
         } else if (root.isJsonObject()) {
-            out.add(GSON.fromJson(root, DecoEntry.class));
+            out.add(parseEntry(root.getAsJsonObject()));
         } else {
             throw new JsonParseException("Expected a JSON array or object of entries.");
         }
@@ -50,5 +52,16 @@ public class JsonImporter {
             if (e.getScale() <= 0.0) e.setScale(1.0);
         }
         return out;
+    }
+
+    /** Older exports wrote "tabs" as a single string — wrap it so it parses as a list. */
+    private static DecoEntry parseEntry(JsonObject obj) {
+        JsonElement tabs = obj.get("tabs");
+        if (tabs != null && tabs.isJsonPrimitive()) {
+            JsonArray arr = new JsonArray();
+            arr.add(tabs);
+            obj.add("tabs", arr);
+        }
+        return GSON.fromJson(obj, DecoEntry.class);
     }
 }

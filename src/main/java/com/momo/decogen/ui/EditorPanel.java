@@ -12,6 +12,9 @@ import com.momo.decogen.model.DecoEntry;
 import com.momo.decogen.model.Flipbook;
 import com.momo.decogen.model.Script;
 import com.momo.decogen.model.SoundPair;
+import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.scene.control.Button;
@@ -23,6 +26,7 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -62,7 +66,9 @@ public class EditorPanel {
     private final CheckBox cullingDisableCheck;
 
     // Display
-    private final ComboBox<String> tabsDropdown;
+    private final ComboBox<String> tabsDropdown;     // "add a tab" picker
+    private final FlowPane tabsChips;                // selected tabs, each removable
+    private final ObservableList<String> selectedTabs = FXCollections.observableArrayList();
     private final ComboBox<String> typeDropdown;
     private final ComboBox<String> defaultAnimationDropdown;
 
@@ -172,15 +178,28 @@ public class EditorPanel {
 
         // --- Display ---
         form.getChildren().add(sectionHeader("Tab & Display"));
-        tabsDropdown = editableCombo("Select tab");
-        tabsDropdown.getItems().add("");
+        tabsDropdown = editableCombo("Add tab… e.g., kitchen");
         tabsDropdown.getItems().addAll(Tabs.ALL);
+        tabsDropdown.setOnAction(ev -> {
+            String v = comboValue(tabsDropdown);
+            if (v == null) return;
+            String tab = v.trim().toLowerCase();
+            if (!tab.isEmpty() && !selectedTabs.contains(tab)) selectedTabs.add(tab);
+            // Clear after the current event so the combo doesn't re-fire mid-action
+            Platform.runLater(() -> {
+                tabsDropdown.setValue(null);
+                tabsDropdown.getEditor().clear();
+            });
+        });
+        tabsChips = new FlowPane(4, 4);
+        selectedTabs.addListener((javafx.collections.ListChangeListener<String>) c -> refreshTabChips());
+        refreshTabChips();
         typeDropdown = editableCombo("(auto)");
         typeDropdown.getItems().add("");
         typeDropdown.getItems().addAll(DecoTypes.ALL);
         defaultAnimationDropdown = editableCombo("Select animation");
         form.getChildren().addAll(
-                fieldLabel("Tab"), tabsDropdown,
+                fieldLabel("Tabs"), tabsChips, tabsDropdown,
                 fieldLabel("Type"), typeDropdown,
                 fieldLabel("Default Animation"), defaultAnimationDropdown
         );
@@ -513,7 +532,7 @@ public class EditorPanel {
         cullingDisableCheck.setSelected(Boolean.FALSE.equals(entry.getCulling()));
 
         // Display
-        tabsDropdown.setValue(nn(entry.getTabs()));
+        selectedTabs.setAll(entry.getTabs() == null ? List.of() : entry.getTabs());
         typeDropdown.setValue(nn(entry.getType()));
         defaultAnimationDropdown.setValue(nn(entry.getDefaultAnimation()));
 
@@ -622,7 +641,7 @@ public class EditorPanel {
         transparencyCheck.setSelected(false);
         cullingDisableCheck.setSelected(false);
 
-        tabsDropdown.setValue("");
+        selectedTabs.clear();
         typeDropdown.setValue("");
         defaultAnimationDropdown.setValue("");
 
@@ -713,7 +732,7 @@ public class EditorPanel {
         e.setTransparency(transparencyCheck.isSelected() ? Boolean.TRUE : null);
         e.setCulling(cullingDisableCheck.isSelected() ? Boolean.FALSE : null);
 
-        e.setTabs(comboValue(tabsDropdown));
+        e.setTabs(selectedTabs.isEmpty() ? null : new ArrayList<>(selectedTabs));
         e.setType(comboValue(typeDropdown));
         e.setDefaultAnimation(comboValue(defaultAnimationDropdown));
 
@@ -820,7 +839,7 @@ public class EditorPanel {
             target.setCulling(proposed.getCulling());
         }
         if (!Objects.equals(proposed.getTabs(), loaded.getTabs())) {
-            target.setTabs(proposed.getTabs());
+            target.setTabs(proposed.getTabs() == null ? null : new ArrayList<>(proposed.getTabs()));
         }
         if (!Objects.equals(proposed.getType(), loaded.getType())) {
             target.setType(proposed.getType());
@@ -1025,7 +1044,7 @@ public class EditorPanel {
             copy.setCulling(original.getCulling());
 
             // Display
-            copy.setTabs(original.getTabs());
+            copy.setTabs(original.getTabs() == null ? null : new ArrayList<>(original.getTabs()));
             copy.setType(original.getType());
             copy.setDefaultAnimation(original.getDefaultAnimation());
 
@@ -1117,6 +1136,24 @@ public class EditorPanel {
         }
         if (a.getStorage() != null) c.setStorage(a.getStorage().clone());
         return c;
+    }
+
+    /** Rebuild the tab chip row: one "name ×" pill per selected tab, faded example when empty. */
+    private void refreshTabChips() {
+        tabsChips.getChildren().clear();
+        if (selectedTabs.isEmpty()) {
+            Label none = new Label("No tabs — e.g., kitchen, food");
+            none.setStyle("-fx-text-fill: #72767d; -fx-font-size: 10px; -fx-font-style: italic;");
+            tabsChips.getChildren().add(none);
+            return;
+        }
+        for (String tab : selectedTabs) {
+            Button chip = new Button(tab + "  ×");
+            chip.setStyle("-fx-background-color: #5865F2; -fx-text-fill: white; -fx-font-size: 11px; "
+                    + "-fx-background-radius: 10; -fx-padding: 2 8 2 8; -fx-cursor: hand;");
+            chip.setOnAction(ev -> selectedTabs.remove(tab));
+            tabsChips.getChildren().add(chip);
+        }
     }
 
     // --- Small helpers ---

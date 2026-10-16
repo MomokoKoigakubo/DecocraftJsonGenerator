@@ -20,7 +20,7 @@ public class DecoEntry {
     private Boolean culling;
 
     // tab & display
-    private String tabs;
+    private List<String> tabs;   // one or more creative tabs
     private int[] craftingColor = {0, 0, 0};
     private String defaultAnimation;
     private String lightColor;   // hex tint (#RRGGBB) for the block's emitted light
@@ -54,11 +54,11 @@ public class DecoEntry {
 
     public DecoEntry() {}
 
-    public DecoEntry(String name, String model, String material, String tabs) {
+    public DecoEntry(String name, String model, String material, String tab) {
         this.name = name;
         this.model = model;
         this.material = material;
-        this.tabs = tabs;
+        this.tabs = tab == null ? null : new java.util.ArrayList<>(List.of(tab));
     }
 
     // --- identity ---
@@ -88,8 +88,8 @@ public class DecoEntry {
     public void setCulling(Boolean culling) { this.culling = culling; }
 
     // --- tab & display ---
-    public String getTabs() { return tabs; }
-    public void setTabs(String tabs) { this.tabs = tabs; }
+    public List<String> getTabs() { return tabs; }
+    public void setTabs(List<String> tabs) { this.tabs = tabs; }
 
     public int[] getCraftingColor() { return craftingColor; }
     public void setCraftingColor(int[] craftingColor) { this.craftingColor = craftingColor; }

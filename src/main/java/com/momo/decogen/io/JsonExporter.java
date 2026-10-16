@@ -61,7 +61,7 @@ public class JsonExporter {
         if (entry.getCulling() != null) map.put("culling", entry.getCulling());
 
         // Tab & display (9-10)
-        if (entry.getTabs() != null) map.put("tabs", entry.getTabs());
+        if (entry.getTabs() != null && !entry.getTabs().isEmpty()) map.put("tabs", entry.getTabs());
         if (entry.getDefaultAnimation() != null) map.put("default_animation", entry.getDefaultAnimation());
         if (entry.getLightColor() != null && !entry.getLightColor().isEmpty()) {
             map.put("light_color", entry.getLightColor());
@@ -238,8 +238,8 @@ public class JsonExporter {
                 "\"storage\": [$1, $2]"
         );
 
-        // Compact string arrays (chain_models, chain_materials, structures) onto one line
-        for (String field : new String[]{"chain_models", "chain_materials", "structures"}) {
+        // Compact string arrays (tabs, chain_models, chain_materials, structures) onto one line
+        for (String field : new String[]{"tabs", "chain_models", "chain_materials", "structures"}) {
             json = compactStringArray(json, field);
         }
 
