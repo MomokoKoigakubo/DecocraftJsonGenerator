@@ -1553,6 +1553,58 @@ public class AppController {
 
         String json = JsonExporter.toJson(new ArrayList<>(entries));
         jsonPreview.setText(json);
+        highlightPreviewFocus();
+    }
+
+    /** The entry the JSON preview scrolls to and highlights (first one clicked). */
+    private DecoEntry previewFocus;
+
+    public DecoEntry getPreviewFocus() { return previewFocus; }
+
+    public void setPreviewFocus(DecoEntry entry) {
+        previewFocus = entry;
+        highlightPreviewFocus();
+    }
+
+    /**
+     * Selects the focus entry's object in the preview and scrolls it to the top.
+     * Gson pretty-printing puts each top-level object at exactly two spaces of
+     * indent, so the Nth "\n  {" opens entry N and the next "\n  }" closes it.
+     */
+    private void highlightPreviewFocus() {
+        if (jsonPreview == null) return;
+        int idx = -1;
+        for (int i = 0; i < entries.size(); i++) {
+            if (entries.get(i) == previewFocus) { idx = i; break; }
+        }
+        if (idx < 0) {
+            jsonPreview.deselect();
+            return;
+        }
+        String text = jsonPreview.getText();
+        int start = -1;
+        int from = 0;
+        for (int i = 0; i <= idx; i++) {
+            start = text.indexOf("\n  {", from);
+            if (start < 0) return;
+            from = start + 1;
+        }
+        int end = text.indexOf("\n  }", start);
+        if (end < 0) return;
+        int selStart = start + 1;
+        int selEnd = end + 4;
+        int line = 0;
+        for (int i = 0; i < selStart; i++) {
+            if (text.charAt(i) == '\n') line++;
+        }
+        final int topLine = line;
+        jsonPreview.selectRange(selStart, selEnd);
+        // Run after layout so the TextArea's own caret-scrolling doesn't win.
+        javafx.application.Platform.runLater(() -> {
+            javafx.scene.text.Text probe = new javafx.scene.text.Text("X");
+            probe.setFont(jsonPreview.getFont());
+            jsonPreview.setScrollTop(topLine * probe.getLayoutBounds().getHeight());
+        });
     }
 
     public void updateIconListView() {

@@ -98,9 +98,23 @@ public class EntryListPanel {
 
             cell.setOnDragDetected(event -> {
                 if (cell.getItem() == null) return;
+                // Grabbing a row that's part of the selection drags the whole
+                // selection; grabbing an unselected row drags just that row.
+                List<Integer> indices = new ArrayList<>();
+                if (cell.isSelected()) {
+                    indices.addAll(listView.getSelectionModel().getSelectedIndices());
+                    indices.sort(null);
+                } else {
+                    indices.add(cell.getIndex());
+                }
+                StringBuilder payload = new StringBuilder(ROW_PAYLOAD);
+                for (int i = 0; i < indices.size(); i++) {
+                    if (i > 0) payload.append(',');
+                    payload.append(indices.get(i));
+                }
                 Dragboard db = cell.startDragAndDrop(TransferMode.MOVE);
                 ClipboardContent content = new ClipboardContent();
-                content.putString(ROW_PAYLOAD + cell.getIndex());
+                content.putString(payload.toString());
                 db.setContent(content);
                 event.consume();
             });
@@ -143,13 +157,17 @@ public class EntryListPanel {
                 Dragboard db = event.getDragboard();
                 boolean success = false;
                 if (db.hasString() && db.getString().startsWith(ROW_PAYLOAD)) {
-                    int sourceIdx;
-                    try {
-                        sourceIdx = Integer.parseInt(db.getString().substring(ROW_PAYLOAD.length()));
-                    } catch (NumberFormatException ex) {
-                        sourceIdx = -1;
-                    }
                     int size = controller.getEntries().size();
+                    List<Integer> sources = new ArrayList<>();
+                    try {
+                        for (String s : db.getString().substring(ROW_PAYLOAD.length()).split(",")) {
+                            int idx = Integer.parseInt(s.trim());
+                            if (idx >= 0 && idx < size && !sources.contains(idx)) sources.add(idx);
+                        }
+                    } catch (NumberFormatException ex) {
+                        sources.clear();
+                    }
+                    sources.sort(null);
                     // Insertion index in the PRE-REMOVAL list: top half -> at
                     // target index (above target); bottom half -> target+1
                     // (below target); empty cell -> end of list.
@@ -161,20 +179,32 @@ public class EntryListPanel {
                         boolean above = event.getY() < cell.getHeight() / 2.0;
                         insertAtPreRemove = above ? tgt : tgt + 1;
                     }
-                    if (sourceIdx >= 0 && sourceIdx < size) {
+                    if (!sources.isEmpty()) {
+                        // Every moved row that sat before the target slot is
+                        // removed first, so the slot slides up by that many.
                         int insertAt = insertAtPreRemove;
-                        // Shift down by one if we remove a row that sat before
-                        // the target slot — indices after sourceIdx slide up.
-                        if (sourceIdx < insertAt) insertAt -= 1;
-                        if (insertAt != sourceIdx) {
+                        for (int idx : sources) {
+                            if (idx < insertAtPreRemove) insertAt -= 1;
+                        }
+                        List<DecoEntry> current = controller.getEntries();
+                        List<DecoEntry> moved = new ArrayList<>();
+                        for (int idx : sources) moved.add(current.get(idx));
+                        List<DecoEntry> reordered = new ArrayList<>(current);
+                        for (int i = sources.size() - 1; i >= 0; i--) {
+                            reordered.remove((int) sources.get(i));
+                        }
+                        if (insertAt < 0) insertAt = 0;
+                        if (insertAt > reordered.size()) insertAt = reordered.size();
+                        reordered.addAll(insertAt, moved);
+                        if (!reordered.equals(current)) {
+                            DecoEntry focus = controller.getPreviewFocus();
                             controller.snapshot();
-                            DecoEntry moved = controller.getEntries().remove(sourceIdx);
-                            int maxIdx = controller.getEntries().size();
-                            if (insertAt < 0) insertAt = 0;
-                            if (insertAt > maxIdx) insertAt = maxIdx;
-                            controller.getEntries().add(insertAt, moved);
+                            controller.getEntries().setAll(reordered);
+                            listView.getSelectionModel().clearSelection();
+                            listView.getSelectionModel().selectRange(insertAt, insertAt + moved.size());
+                            // Reselecting picks the top row; keep the one first clicked.
+                            if (moved.contains(focus)) controller.setPreviewFocus(focus);
                             controller.updateJsonPreview();
-                            listView.getSelectionModel().clearAndSelect(insertAt);
                             success = true;
                         }
                     }
@@ -187,6 +217,17 @@ public class EntryListPanel {
         });
 
         listView.getSelectionModel().getSelectedItems().addListener((ListChangeListener<DecoEntry>) c -> {
+            // Keep the preview on the first entry clicked: it only changes when
+            // that entry leaves the selection (or a single row is picked).
+            List<DecoEntry> sel = listView.getSelectionModel().getSelectedItems();
+            DecoEntry focus = controller.getPreviewFocus();
+            if (sel.isEmpty()) {
+                focus = null;
+            } else if (sel.size() == 1 || focus == null || !sel.contains(focus)) {
+                focus = sel.get(0);
+            }
+            controller.setPreviewFocus(focus);
+
             EditorPanel editor = controller.getEditorPanel();
             if (editor == null) return;
 

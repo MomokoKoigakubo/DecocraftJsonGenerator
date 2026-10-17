@@ -23,7 +23,7 @@ public class JsonPreviewPanel {
         jsonPreview = new TextArea();
         jsonPreview.setEditable(false);
         jsonPreview.setWrapText(false);
-        jsonPreview.setStyle("-fx-control-inner-background: #1e1f22; -fx-text-fill: #dcddde; -fx-font-family: monospace;");
+        jsonPreview.setStyle("-fx-control-inner-background: #1e1f22; -fx-text-fill: #dcddde; -fx-font-family: monospace; -fx-highlight-fill: #5865F2; -fx-highlight-text-fill: #ffffff;");
         VBox.setVgrow(jsonPreview, Priority.ALWAYS);
 
         root.getChildren().addAll(title, jsonPreview);
